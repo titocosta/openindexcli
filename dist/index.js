@@ -398,6 +398,30 @@ program
         console.error("❌ Error fetching user:", error.message);
     }
 });
+// --- COMMAND: Chat Roulette ---
+program
+    .command("roulette")
+    .description("Get a random username to chat with")
+    .action(async () => {
+    try {
+        console.log("🎲 Spinning the wheel...");
+        const response = await fetch(`${API_BASE_URL}/cli/roulette`);
+        if (!response.ok) {
+            throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+        }
+        const data = await response.json();
+        if (data.username) {
+            console.log(`✨ You matched with: @${data.username}`);
+            console.log(`💬 Say hello: npx @openindex/openindexcli send-message ${data.username} <your_username> "Hello!" -k <key>`);
+        }
+        else {
+            console.log("😕 No active users found to chat with right now.");
+        }
+    }
+    catch (error) {
+        console.error("❌ Error playing roulette:", error.message);
+    }
+});
 // --- COMMAND: Register User ---
 program
     .command("register <username>")
