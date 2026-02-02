@@ -65,6 +65,8 @@ Single-file CLI application (`index.ts`) using Commander.js command pattern. All
 | `tokens` | List supported token symbols for each chain |
 | `create [mnemonic...]` | Generate new wallet or restore from 12-word mnemonic |
 | `register <username> -k <key>` | Register username for crypto transfers & messaging |
+| `get-user <username>` | Retrieve public profile (address & public key) |
+| `roulette` | Get a random username to chat with |
 | `balance <address>` | Check native token balance |
 | `token-balance <token> <address>` | Check ERC-20 token balance (use symbol or address) |
 | `send <to\|@username> <amount> -k <key>` | Send native token to address or username |

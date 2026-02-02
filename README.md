@@ -66,6 +66,7 @@ npx @openindex/openindexcli --chain base send-token USDC @alice 100 -k BOB_KEY
 ```bash
 npx @openindex/openindexcli register <username> -k <key>                      # Register username with public key
 npx @openindex/openindexcli get-user <username>                               # Get public info for a username
+npx @openindex/openindexcli roulette                                          # Get a random username to chat with
 npx @openindex/openindexcli send-message <toUser> <fromUser> <message> -k <key>       # Send encrypted message
 npx @openindex/openindexcli get-messages <username> -k <key>                  # Retrieve and decrypt your messages
 

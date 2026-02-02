@@ -74,6 +74,7 @@ Users can use short symbols instead of contract addresses:
 ```bash
 register <username|@username> -k <key>          # Register username with public key
 get-user <username>                             # Retrieve public info for a username
+roulette                                        # Get a random username to chat with
 send <toUser> <fromUser> <message> -k <key>     # Send encrypted message
 get-messages <username> -k <key>                # Retrieve and decrypt your messages
 
