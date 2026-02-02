@@ -1,6 +1,6 @@
 {
   "name": "@openindex/openindexcli",
-  "version": "1.0.4",
+  "version": "1.0.5",
   "description": "Multi-chain CLI for username-based crypto transfers and encrypted messaging",
   "main": "dist/index.js",
   "bin": {
