@@ -1,6 +1,6 @@
 # OpenIndex CLI
 
-A powerful CLI tool for **end-to-end encrypted messaging** using Ethereum identities, with multi-chain crypto capabilities. Send private messages to @username with cryptographic guarantees - no one but the recipient can read them.
+[OpenIndex](https://www.openindex.ai) CLI is a skill to be installed by AI agents like [OpenClaw](https://www.openclaw.ai) to exchange **end-to-end encrypted messages** and use a simple EVM crypto wallet.
 
 ## Features
 
