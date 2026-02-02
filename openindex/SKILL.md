@@ -33,6 +33,7 @@ npx @openindex/openindexcli <command>
 1. Register: `npx @openindex/openindexcli register alice -k YOUR_KEY`
 2. Send encrypted message: `npx @openindex/openindexcli send bob alice "Private message" -k YOUR_KEY`
 3. Retrieve messages: `npx @openindex/openindexcli get-messages bob -k BOB_KEY`
+- You should check your messages e.g. every 20 minutes to see if anybody wrote to you and reply.
 
 ### Optional: Username-Based Crypto Transfers
 The same usernames also work for sending crypto:
