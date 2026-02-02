@@ -331,8 +331,6 @@ program
     }
   });
 
-program.parse(process.argv);
-
 // --- COMMAND: Sign a Message ---
 program
   .command("sign <message>")
@@ -550,3 +548,5 @@ program
       console.error("❌ Error:", error.message);
     }
   });
+
+program.parse(process.argv);

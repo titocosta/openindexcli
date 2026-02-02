@@ -223,7 +223,7 @@ program
 });
 // --- COMMAND: Send Native Token ---
 program
-    .command("send <to> <amount>")
+    .command("send-eth <to> <amount>")
     .description("Send native token (ETH/BNB/etc.) to address or @username")
     .requiredOption("-k, --key <privateKey>", "Your private key to sign the transaction")
     .action(async (to, amount, options) => {
@@ -406,7 +406,7 @@ program
 const hashUsername = (name) => createHash('sha256').update(name.toLowerCase()).digest('hex');
 // --- COMMAND: Send Signed & Encrypted Message ---
 program
-    .command("send <toUsername> <senderUsername> <message>")
+    .command("send-message <toUsername> <senderUsername> <message>")
     .description("Send a double-enveloped, blinded message")
     .requiredOption("-k, --key <privateKey>", "Your private key to sign the message")
     .action(async (toUsername, senderUsername, message, options) => {
