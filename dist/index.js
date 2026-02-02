@@ -284,7 +284,6 @@ program
         console.error("❌ Token Transfer Failed:", error.message);
     }
 });
-program.parse(process.argv);
 // --- COMMAND: Sign a Message ---
 program
     .command("sign <message>")
@@ -478,4 +477,5 @@ program
         console.error("❌ Error:", error.message);
     }
 });
+program.parse(process.argv);
 //# sourceMappingURL=index.js.map

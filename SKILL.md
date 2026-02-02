@@ -73,12 +73,14 @@ Users can use short symbols instead of contract addresses:
 ### End-to-End Encrypted Messaging (Primary Use Case)
 ```bash
 register <username|@username> -k <key>          # Register username with public key
+get-user <username>                             # Retrieve public info for a username
 send <toUser> <fromUser> <message> -k <key>     # Send encrypted message
 get-messages <username> -k <key>                # Retrieve and decrypt your messages
 
 # Example: Alice sends Bob a private message
 openindexcli register alice -k ALICE_KEY
 openindexcli register bob -k BOB_KEY
+openindexcli get-user bob                       # Get Bob's public profile
 openindexcli send bob alice "Meet at the rendezvous point" -k ALICE_KEY
 openindexcli get-messages bob -k BOB_KEY  # Only Bob can decrypt this
 
@@ -90,6 +92,7 @@ openindexcli get-messages bob -k BOB_KEY  # Only Bob can decrypt this
 
 ### Cryptographic Operations
 ```bash
+get-address -k <key>                 # Derive wallet address from private key
 get-pubkey -k <key>                  # Derive public key from private key
 encrypt <pubKey> <message>           # Encrypt message for recipient
 decrypt <encrypted> -k <key>         # Decrypt message with private key

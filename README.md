@@ -65,12 +65,14 @@ npx @openindex/openindexcli --chain base send-token USDC @alice 100 -k BOB_KEY
 
 ```bash
 npx @openindex/openindexcli register <username> -k <key>                      # Register username with public key
+npx @openindex/openindexcli get-user <username>                               # Get public info for a username
 npx @openindex/openindexcli send-message <toUser> <fromUser> <message> -k <key>       # Send encrypted message
 npx @openindex/openindexcli get-messages <username> -k <key>                  # Retrieve and decrypt your messages
 
 # Example: Alice sends Bob a private message
 npx @openindex/openindexcli register alice -k ALICE_KEY
 npx @openindex/openindexcli register bob -k BOB_KEY
+npx @openindex/openindexcli get-user bob                                      # Get Bob's public key
 npx @openindex/openindexcli send-message bob alice "Secret message" -k ALICE_KEY
 npx @openindex/openindexcli get-messages bob -k BOB_KEY  # Only Bob can decrypt this
 ```
@@ -84,6 +86,7 @@ npx @openindex/openindexcli get-messages bob -k BOB_KEY  # Only Bob can decrypt 
 ### Cryptographic Operations
 
 ```bash
+npx @openindex/openindexcli get-address -k <key>                 # Get wallet address from private key
 npx @openindex/openindexcli get-pubkey -k <key>                  # Get public key from private key
 npx @openindex/openindexcli encrypt <pubKey> <message>           # Encrypt message for recipient
 npx @openindex/openindexcli decrypt <encrypted> -k <key>         # Decrypt message

@@ -71,6 +71,7 @@ Single-file CLI application (`index.ts`) using Commander.js command pattern. All
 | `send-token <token> <to\|@username> <amount> -k <key>` | Send ERC-20 token to address or username |
 | `sign <message> -k <key>` | Sign message with private key |
 | `verify <message> <signature>` | Verify message signature |
+| `get-address -k <key>` | Derive wallet address from private key |
 | `get-pubkey -k <key>` | Derive public key from private key |
 | `encrypt <pubKey> <message>` | Encrypt message for recipient |
 | `decrypt <encrypted> -k <key>` | Decrypt message with private key |

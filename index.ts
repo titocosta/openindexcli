@@ -364,6 +364,21 @@ program
   });
 
 
+// --- COMMAND: Get Address ---
+program
+  .command("get-address")
+  .description("Derive the Ethereum address from your Private Key")
+  .requiredOption("-k, --key <privateKey>", "Your private key")
+  .action((options) => {
+    try {
+      const wallet = new ethers.Wallet(options.key);
+      console.log("📍 Your Wallet Address:");
+      console.log(wallet.address);
+    } catch (error: any) {
+      console.error("❌ Error deriving address:", error.message);
+    }
+  });
+
 // --- COMMAND: Get Public Key ---
 // Encryption requires a Public Key, which is different from an Address.
 program
@@ -413,6 +428,34 @@ program
       console.log(message);
     } catch (error: any) {
       console.error("❌ Decryption failed. Did you use the wrong key?");
+    }
+  });
+
+// --- COMMAND: Get User Information ---
+program
+  .command("get-user <username>")
+  .description("Retrieve public profile (address and public key) for a username")
+  .action(async (username) => {
+    try {
+      const normalizedUsername = normalizeUsername(username);
+      console.log(`🔍 Looking up user: @${normalizedUsername}...`);
+      
+      const response = await fetch(`${API_BASE_URL}/cli/user/${normalizedUsername}`);
+      
+      if (!response.ok) {
+        if (response.status === 404) {
+          throw new Error(`User "@${normalizedUsername}" not found.`);
+        }
+        throw new Error(`Server returned ${response.status}: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      
+      console.log(`👤 User Profile: @${normalizedUsername}`);
+      console.log(`📍 Address:    ${data.address || 'N/A'}`);
+      console.log(`🔑 Public Key: ${data.publicKey || 'N/A'}`);
+    } catch (error: any) {
+      console.error("❌ Error fetching user:", error.message);
     }
   });
 
@@ -538,10 +581,10 @@ program
 
         if (recoveredAddress.toLowerCase() === expectedAddress.toLowerCase()) {
           const date = new Date(createdAt).toLocaleString();
-          console.log(`\n[${date}] From ${senderId}:`);
+          console.log(`\n${msg.id} [${date}] From ${senderId}:`);
           console.log(`> ${text}`);
         } else {
-          console.log("⚠️ Received a message with a forged signature!");
+          console.debug("⚠️ Received a message with a forged signature!");
         }
       }
     } catch (error: any) {
