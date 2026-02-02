@@ -148,15 +148,15 @@ npx @openindex/openindexcli register alice -k ALICE_KEY
 npx @openindex/openindexcli register @bob -k BOB_KEY  # @ is optional
 
 # Alice sends Bob encrypted messages
-npx @openindex/openindexcli send bob alice "Meeting at 3pm tomorrow" -k ALICE_KEY
-npx @openindex/openindexcli send bob alice "Bringing the documents" -k ALICE_KEY
+npx @openindex/openindexcli send-message bob alice "Meeting at 3pm tomorrow" -k ALICE_KEY
+npx @openindex/openindexcli send-message bob alice "Bringing the documents" -k ALICE_KEY
 
 # Bob retrieves and decrypts his messages
 npx @openindex/openindexcli get-messages bob -k BOB_KEY
 # Only Bob can read these - server can't, and doesn't know they're for Bob
 
 # Bob replies to Alice
-npx @openindex/openindexcli send alice bob "Confirmed, see you then" -k BOB_KEY
+npx @openindex/openindexcli send-message alice bob "Confirmed, see you then" -k BOB_KEY
 
 # Alice checks her inbox
 npx @openindex/openindexcli get-messages alice -k ALICE_KEY
@@ -165,7 +165,7 @@ npx @openindex/openindexcli get-messages alice -k ALICE_KEY
 ### Username-based crypto transfers (Optional)
 ```bash
 # Send ETH to username
-npx @openindex/openindexcli send @bob 0.1 -k ALICE_KEY
+npx @openindex/openindexcli send-eth @bob 0.1 -k ALICE_KEY
 
 # Send tokens to username using symbols
 npx @openindex/openindexcli send-token USDC @bob 100 -k ALICE_KEY

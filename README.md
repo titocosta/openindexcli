@@ -43,11 +43,11 @@ npx @openindex/openindexcli register alice -k YOUR_PRIVATE_KEY
 npx @openindex/openindexcli register @bob -k BOB_PRIVATE_KEY  # @ is optional
 
 # Send end-to-end encrypted messages
-npx @openindex/openindexcli send bob alice "Hello Bob! Only you can read this." -k ALICE_KEY
+npx @openindex/openindexcli send-message bob alice "Hello Bob! Only you can read this." -k ALICE_KEY
 npx @openindex/openindexcli get-messages bob -k BOB_KEY  # Bob retrieves and decrypts
 
 # Send crypto to username (optional - CLI is primarily for messaging)
-npx @openindex/openindexcli send @bob 0.1 -k ALICE_KEY
+npx @openindex/openindexcli send-eth @bob 0.1 -k ALICE_KEY
 npx @openindex/openindexcli --chain base send-token USDC @alice 100 -k BOB_KEY
 ```
 
@@ -64,15 +64,15 @@ npx @openindex/openindexcli --chain base send-token USDC @alice 100 -k BOB_KEY
 ### End-to-End Encrypted Messaging
 
 ```bash
-register <username> -k <key>                      # Register username with public key
-send <toUser> <fromUser> <message> -k <key>       # Send encrypted message
-get-messages <username> -k <key>                  # Retrieve and decrypt your messages
+npx @openindex/openindexcli register <username> -k <key>                      # Register username with public key
+npx @openindex/openindexcli send-message <toUser> <fromUser> <message> -k <key>       # Send encrypted message
+npx @openindex/openindexcli get-messages <username> -k <key>                  # Retrieve and decrypt your messages
 
 # Example: Alice sends Bob a private message
-openindexcli register alice -k ALICE_KEY
-openindexcli register bob -k BOB_KEY
-openindexcli send bob alice "Secret message" -k ALICE_KEY
-openindexcli get-messages bob -k BOB_KEY  # Only Bob can decrypt this
+npx @openindex/openindexcli register alice -k ALICE_KEY
+npx @openindex/openindexcli register bob -k BOB_KEY
+npx @openindex/openindexcli send-message bob alice "Secret message" -k ALICE_KEY
+npx @openindex/openindexcli get-messages bob -k BOB_KEY  # Only Bob can decrypt this
 ```
 
 **Privacy Guarantees:**
@@ -84,29 +84,29 @@ openindexcli get-messages bob -k BOB_KEY  # Only Bob can decrypt this
 ### Cryptographic Operations
 
 ```bash
-get-pubkey -k <key>                  # Get public key from private key
-encrypt <pubKey> <message>           # Encrypt message for recipient
-decrypt <encrypted> -k <key>         # Decrypt message
-sign <message> -k <key>              # Sign a message
-verify <message> <signature>         # Verify signature
+npx @openindex/openindexcli get-pubkey -k <key>                  # Get public key from private key
+npx @openindex/openindexcli encrypt <pubKey> <message>           # Encrypt message for recipient
+npx @openindex/openindexcli decrypt <encrypted> -k <key>         # Decrypt message
+npx @openindex/openindexcli sign <message> -k <key>              # Sign a message
+npx @openindex/openindexcli verify <message> <signature>         # Verify signature
 ```
 
 ### Wallet & Crypto Operations
 
 ```bash
-create                                  # Generate new random wallet
-create word1 word2 ... word12           # Restore wallet from 12-word mnemonic
-balance <address>                       # Check native token balance
-send <to|@username> <amount> -k <key>   # Send native tokens to address or @username
+npx @openindex/openindexcli create                                  # Generate new random wallet
+npx @openindex/openindexcli create word1 word2 ... word12           # Restore wallet from 12-word mnemonic
+npx @openindex/openindexcli balance <address>                       # Check native token balance
+npx @openindex/openindexcli send-eth <to|@username> <amount> -k <key>   # Send native tokens to address or @username
 ```
 
 ### Token Operations
 
 ```bash
-chains                                       # List supported blockchains
-tokens                                       # List supported token symbols
-token-balance <token> <address>              # Check token balance
-send-token <token> <to|@username> <amount> -k <key>  # Send tokens
+npx @openindex/openindexcli chains                                       # List supported blockchains
+npx @openindex/openindexcli tokens                                       # List supported token symbols
+npx @openindex/openindexcli token-balance <token> <address>              # Check token balance
+npx @openindex/openindexcli send-token <token> <to|@username> <amount> -k <key>  # Send tokens
 ```
 
 Use token symbols (USDC, USDT, DAI) or full contract addresses!
@@ -122,7 +122,7 @@ npx @openindex/openindexcli register alice -k ALICE_KEY
 npx @openindex/openindexcli register bob -k BOB_KEY
 
 # Alice sends Bob an encrypted message
-npx @openindex/openindexcli send bob alice "Meet me at the specified location at 3pm" -k ALICE_KEY
+npx @openindex/openindexcli send-message bob alice "Meet me at the specified location at 3pm" -k ALICE_KEY
 # Message encrypted with Bob's public key
 # Server stores by hash - doesn't know it's for Bob
 # Only Bob's private key can decrypt it
@@ -134,7 +134,7 @@ npx @openindex/openindexcli get-messages bob -k BOB_KEY
 # > Meet me at the specified location at 3pm
 
 # Alice can also receive replies
-npx @openindex/openindexcli send alice bob "Confirmed. See you then." -k BOB_KEY
+npx @openindex/openindexcli send-message alice bob "Confirmed. See you then." -k BOB_KEY
 npx @openindex/openindexcli get-messages alice -k ALICE_KEY
 ```
 
@@ -146,7 +146,7 @@ npx @openindex/openindexcli register alice -k ALICE_KEY
 npx @openindex/openindexcli register @bob -k BOB_KEY  # @ is optional
 
 # Send ETH to username (no 0x address needed!)
-npx @openindex/openindexcli send @bob 0.1 -k ALICE_KEY
+npx @openindex/openindexcli send-eth @bob 0.1 -k ALICE_KEY
 
 # Send USDC on Base to username
 npx @openindex/openindexcli --chain base send-token USDC @alice 100 -k BOB_KEY

@@ -55,7 +55,7 @@ async function resolveUsernameToAddress(recipient) {
     const username = normalizeUsername(recipient);
     try {
         console.log(`🔍 Looking up username: ${username}`);
-        const response = await fetch(`${API_BASE_URL}/api/user/${username}`);
+        const response = await fetch(`${API_BASE_URL}/cli/user/${username}`);
         if (!response.ok) {
             throw new Error(`Username "${username}" not found. Register first with: register ${username} -k YOUR_KEY`);
         }
@@ -81,7 +81,7 @@ function getProvider(chain = "eth") {
 // Legacy single provider (for backwards compatibility)
 const RPC_URL = process.env.RPC_URL || CHAIN_CONFIGS.eth.rpcUrl;
 const provider = new ethers.JsonRpcProvider(RPC_URL);
-const API_BASE_URL = "https://www.openindex.ai";
+const API_BASE_URL = "https://chat.openindex.ai/api";
 const program = new Command();
 program
     .name("eth-tool")
@@ -375,8 +375,8 @@ program
         const address = wallet.address;
         console.log(`📡 Registering @${normalizedUsername} at ${API_BASE_URL}...`);
         console.log(`   Address: ${address}`);
-        // POST to /api/register
-        const response = await fetch(`${API_BASE_URL}/api/register`, {
+        // POST to /cli/register
+        const response = await fetch(`${API_BASE_URL}/cli/register`, {
             method: "POST",
             headers: {
                 "Content-Type": "application/json",
@@ -412,7 +412,7 @@ program
     .action(async (toUsername, senderUsername, message, options) => {
     try {
         // 1. Discovery: Get recipient's public key
-        const keyResp = await fetch(`${API_BASE_URL}/api/user/${toUsername}`);
+        const keyResp = await fetch(`${API_BASE_URL}/cli/user/${toUsername}`);
         const { publicKey: recipientPubKey } = await keyResp.json();
         // 2. Double Envelope: Wrap the message and sender metadata in JSON
         const innerPayload = JSON.stringify({
@@ -429,7 +429,7 @@ program
         // 5. Blind the Recipient for the server
         const blindedRecipient = hashUsername(toUsername);
         // 6. POST to server
-        await fetch(`${API_BASE_URL}/api/send`, {
+        await fetch(`${API_BASE_URL}/cli/send`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({
@@ -451,7 +451,7 @@ program
     .action(async (username, options) => {
     try {
         const inboxId = hashUsername(username);
-        const response = await fetch(`${API_BASE_URL}/api/messages/${inboxId}`);
+        const response = await fetch(`${API_BASE_URL}/cli/messages/${inboxId}`);
         const messages = await response.json();
         for (const msg of messages) {
             // 1. Decrypt the Envelope
@@ -461,7 +461,7 @@ program
             // 2. Verify Signature (Authencity check)
             const recoveredAddress = ethers.verifyMessage(msg.message, msg.signature);
             // Fetch sender's key to confirm address
-            const sKeyResp = await fetch(`${API_BASE_URL}/api/user/${senderId}`);
+            const sKeyResp = await fetch(`${API_BASE_URL}/cli/user/${senderId}`);
             const { publicKey: sPubKey } = await sKeyResp.json();
             const expectedAddress = EthCrypto.publicKey.toAddress(sPubKey);
             if (recoveredAddress.toLowerCase() === expectedAddress.toLowerCase()) {
