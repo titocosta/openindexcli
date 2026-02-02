@@ -4,13 +4,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-OpenIndexCLI is an Ethereum-based CLI tool for wallet management, encrypted messaging, and user registration with the OpenIndex.ai service. Built with TypeScript using Commander.js for the CLI framework and ethers.js/eth-crypto for blockchain operations.
+OpenIndexCLI is a multi-chain CLI tool with username-based crypto transfers. Users register usernames (like @alice) and can send ETH/tokens to usernames instead of 0x addresses. Supports encrypted messaging, wallet management across Ethereum, Base, and BSC. Built with TypeScript using Commander.js for the CLI framework and ethers.js/eth-crypto for blockchain operations.
 
 ## Commands
 
 ### Run the CLI
 ```bash
+# Default (Ethereum)
 npx ts-node index.ts <command> [options]
+
+# Specify blockchain
+npx ts-node index.ts --chain <eth|base|bsc> <command> [options]
 ```
 
 ### Build (TypeScript compilation)
@@ -27,6 +31,10 @@ npm install
 
 Single-file CLI application (`index.ts`) using Commander.js command pattern. All commands are registered on a single `program` instance.
 
+**Key files:**
+- `index.ts` - Main CLI application with all commands
+- `tokens.json` - Token registry mapping symbols to contract addresses
+
 **Key dependencies:**
 - `ethers` - Ethereum wallet operations, transaction signing, message verification
 - `eth-crypto` - Public key derivation, asymmetric encryption/decryption
@@ -39,15 +47,28 @@ Single-file CLI application (`index.ts`) using Commander.js command pattern. All
 - Message retrieval (`/api/messages/{inboxId}`)
 
 **Environment:**
-- `RPC_URL` - Ethereum JSON-RPC endpoint (defaults to Cloudflare)
+- `ETH_RPC_URL` - Ethereum JSON-RPC endpoint (defaults to Cloudflare)
+- `BASE_RPC_URL` - Base JSON-RPC endpoint (defaults to Base mainnet)
+- `BSC_RPC_URL` - BSC JSON-RPC endpoint (defaults to Binance dataseed)
+- `RPC_URL` - Legacy RPC URL (backwards compatibility)
+
+**Supported Chains:**
+- `eth` - Ethereum Mainnet (Chain ID: 1)
+- `base` - Base Mainnet (Chain ID: 8453)
+- `bsc` - Binance Smart Chain (Chain ID: 56)
 
 ## CLI Commands
 
 | Command | Description |
 |---------|-------------|
-| `create` | Generate new Ethereum wallet |
-| `balance <address>` | Check ETH balance |
-| `send <to> <amount> -k <key>` | Send ETH transaction |
+| `chains` | List supported blockchain networks |
+| `tokens` | List supported token symbols for each chain |
+| `create [mnemonic...]` | Generate new wallet or restore from 12-word mnemonic |
+| `register <username> -k <key>` | Register username for crypto transfers & messaging |
+| `balance <address>` | Check native token balance |
+| `token-balance <token> <address>` | Check ERC-20 token balance (use symbol or address) |
+| `send <to\|@username> <amount> -k <key>` | Send native token to address or username |
+| `send-token <token> <to\|@username> <amount> -k <key>` | Send ERC-20 token to address or username |
 | `sign <message> -k <key>` | Sign message with private key |
 | `verify <message> <signature>` | Verify message signature |
 | `get-pubkey -k <key>` | Derive public key from private key |
@@ -56,6 +77,35 @@ Single-file CLI application (`index.ts`) using Commander.js command pattern. All
 | `register <username> -k <key>` | Register with OpenIndex server |
 | `send <toUser> <fromUser> <msg> -k <key>` | Send encrypted message |
 | `get-messages <username> -k <key>` | Retrieve and decrypt inbox messages |
+
+## Human-Friendly Features
+
+### Username-Based Transfers
+Register a username and send crypto using @username instead of 0x addresses:
+```bash
+# Register
+npx ts-node index.ts register alice -k YOUR_KEY
+
+# Send to username (@ is optional)
+npx ts-node index.ts send @bob 0.1 -k YOUR_KEY
+npx ts-node index.ts send-token USDC @alice 100 -k YOUR_KEY
+```
+
+### Token Symbol Support
+Use short symbols instead of full contract addresses:
+
+**Ethereum**: USDC, USDT, DAI, WETH, WBTC, UNI, LINK, AAVE
+**Base**: USDC, DAI, WETH, cbETH
+**BSC**: USDC, USDT, BUSD, DAI, WBNB, CAKE, ETH
+
+Examples:
+```bash
+# Send USDC to username using symbol
+npx ts-node index.ts --chain base send-token USDC @alice 100 -k YOUR_KEY
+
+# Combine both: username + token symbol
+npx ts-node index.ts send-token USDT @bob 50 -k YOUR_KEY
+```
 
 ## Messaging Protocol
 

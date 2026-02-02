@@ -1,61 +1,281 @@
-#!/usr/bin/env ts-node
+#!/usr/bin/env node
 import { ethers } from "ethers";
 import { createHash } from 'crypto';
 import EthCrypto from 'eth-crypto';
 import { Command } from "commander";
 import * as dotenv from "dotenv";
+import tokenRegistryData from './tokens.json' with { type: 'json' };
 
 dotenv.config();
 
-const program = new Command();
-const RPC_URL = process.env.RPC_URL || "https://cloudflare-eth.com"; // Default to Mainnet
+// Chain configurations
+const CHAIN_CONFIGS = {
+  eth: {
+    name: "Ethereum",
+    rpcUrl: process.env.ETH_RPC_URL || "https://cloudflare-eth.com",
+    chainId: 1,
+  },
+  base: {
+    name: "Base",
+    rpcUrl: process.env.BASE_RPC_URL || "https://mainnet.base.org",
+    chainId: 8453,
+  },
+  bsc: {
+    name: "BSC",
+    rpcUrl: process.env.BSC_RPC_URL || "https://bsc-dataseed.binance.org",
+    chainId: 56,
+  },
+};
+
+type ChainKey = keyof typeof CHAIN_CONFIGS;
+
+// Token registry - imported from tokens.json
+const TOKEN_REGISTRY: Record<ChainKey, Record<string, string>> = tokenRegistryData as Record<ChainKey, Record<string, string>>;
+
+// Function to resolve token symbol to address
+function resolveTokenAddress(tokenInput: string, chain: ChainKey): string {
+  // If it's already an address (starts with 0x), return it
+  if (tokenInput.startsWith("0x")) {
+    return tokenInput;
+  }
+
+  // Try to resolve as a symbol
+  const upperSymbol = tokenInput.toUpperCase();
+  const address = TOKEN_REGISTRY[chain]?.[upperSymbol];
+  
+  if (!address) {
+    throw new Error(
+      `Token "${tokenInput}" not found in ${chain.toUpperCase()} registry. ` +
+      `Use full contract address or one of: ${Object.keys(TOKEN_REGISTRY[chain] || {}).join(", ")}`
+    );
+  }
+
+  return address;
+}
+
+// Function to normalize username (remove leading @)
+function normalizeUsername(username: string): string {
+  return username.startsWith('@') ? username.slice(1) : username;
+}
+
+// Function to resolve username to Ethereum address
+async function resolveUsernameToAddress(recipient: string): Promise<string> {
+  // If it's already an address (starts with 0x), return it
+  if (recipient.startsWith("0x")) {
+    return recipient;
+  }
+
+  // Normalize username (remove @ if present)
+  const username = normalizeUsername(recipient);
+
+  try {
+    console.log(`🔍 Looking up username: ${username}`);
+    const response = await fetch(`${API_BASE_URL}/api/user/${username}`);
+    
+    if (!response.ok) {
+      throw new Error(`Username "${username}" not found. Register first with: register ${username} -k YOUR_KEY`);
+    }
+
+    const data = await response.json();
+    
+    if (!data.address) {
+      throw new Error(`Username "${username}" exists but has no address registered`);
+    }
+
+    console.log(`✅ Resolved @${username} → ${data.address}`);
+    return data.address;
+  } catch (error: any) {
+    throw new Error(`Failed to resolve username "${username}": ${error.message}`);
+  }
+}
+
+// Function to get provider for a specific chain
+function getProvider(chain: ChainKey = "eth"): ethers.JsonRpcProvider {
+  const config = CHAIN_CONFIGS[chain];
+  if (!config) {
+    throw new Error(`Unsupported chain: ${chain}. Use: eth, base, or bsc`);
+  }
+  return new ethers.JsonRpcProvider(config.rpcUrl);
+}
+
+// Legacy single provider (for backwards compatibility)
+const RPC_URL = process.env.RPC_URL || CHAIN_CONFIGS.eth.rpcUrl;
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 
 const API_BASE_URL = "https://www.openindex.ai";
 
+const program = new Command();
+
 program
   .name("eth-tool")
-  .description("Simple Ethereum CLI for wallet management")
-  .version("1.0.0");
+  .description("Multi-chain CLI for wallet management (ETH, Base, BSC)")
+  .version("1.0.0")
+  .option("--chain <chain>", "Blockchain to use (eth, base, bsc)", "eth");
+
+// --- COMMAND: List Chains ---
+program
+  .command("chains")
+  .description("List supported blockchain networks")
+  .action(() => {
+    console.log("🔗 Supported Blockchains:\n");
+    Object.entries(CHAIN_CONFIGS).forEach(([key, config]) => {
+      console.log(`  ${key.toUpperCase().padEnd(6)} - ${config.name}`);
+      console.log(`         RPC: ${config.rpcUrl}`);
+      console.log(`         Chain ID: ${config.chainId}\n`);
+    });
+    console.log("💡 Use --chain <key> to specify which blockchain to use");
+    console.log("   Example: npx ts-node index.ts --chain base balance 0x...");
+  });
+
+// --- COMMAND: List Tokens ---
+program
+  .command("tokens")
+  .description("List supported token symbols for each chain")
+  .action(() => {
+    const opts = program.opts();
+    const selectedChain = opts.chain as ChainKey;
+    
+    if (selectedChain && selectedChain !== "eth") {
+      // Show tokens for specific chain
+      const tokens = TOKEN_REGISTRY[selectedChain];
+      console.log(`\n🪙 Supported Tokens on ${CHAIN_CONFIGS[selectedChain].name}:\n`);
+      Object.entries(tokens).forEach(([symbol, address]) => {
+        console.log(`  ${symbol.padEnd(6)} - ${address}`);
+      });
+      console.log(`\n💡 Use token symbols instead of addresses:`);
+      console.log(`   npx ts-node index.ts --chain ${selectedChain} token-balance ${Object.keys(tokens)[0]} 0x...`);
+    } else {
+      // Show all chains
+      console.log("🪙 Supported Token Symbols by Chain:\n");
+      Object.entries(TOKEN_REGISTRY).forEach(([chain, tokens]) => {
+        console.log(`${CHAIN_CONFIGS[chain as ChainKey].name} (${chain.toUpperCase()}):`);
+        console.log(`  ${Object.keys(tokens).join(", ")}\n`);
+      });
+      console.log("💡 Use token symbols instead of addresses:");
+      console.log("   npx ts-node index.ts --chain base token-balance USDC 0x...");
+      console.log("   npx ts-node index.ts --chain eth send-token USDT 0xRecipient 100 -k KEY");
+    }
+  });
 
 // --- COMMAND: Create Wallet ---
 program
-  .command("create")
-  .description("Generate a new random Ethereum wallet")
-  .action(() => {
-    const wallet = ethers.Wallet.createRandom();
-    console.log("✅ New Wallet Generated:");
-    console.log(`Address:   ${wallet.address}`);
-    console.log(`Mnemonic:  ${wallet.mnemonic?.phrase}`);
-    console.log(`Private Key: ${wallet.privateKey}`);
-    console.log("\n⚠️  SAVE YOUR PRIVATE KEY! If you lose it, you lose your funds.");
+  .command("create [mnemonic...]")
+  .description("Generate a new random Ethereum wallet or restore from mnemonic")
+  .action((mnemonicWords) => {
+    try {
+      let wallet: ethers.HDNodeWallet;
+      
+      if (mnemonicWords && mnemonicWords.length > 0) {
+        // Restore wallet from provided mnemonic
+        const mnemonicPhrase = mnemonicWords.join(" ");
+        
+        // Validate mnemonic (should be 12, 15, 18, 21, or 24 words)
+        const wordCount = mnemonicWords.length;
+        if (![12, 15, 18, 21, 24].includes(wordCount)) {
+          console.error(`❌ Invalid mnemonic: Expected 12, 15, 18, 21, or 24 words, got ${wordCount}`);
+          return;
+        }
+        
+        wallet = ethers.Wallet.fromPhrase(mnemonicPhrase);
+        console.log("✅ Wallet Restored from Mnemonic:");
+      } else {
+        // Generate new random wallet
+        wallet = ethers.Wallet.createRandom();
+        console.log("✅ New Wallet Generated:");
+      }
+      
+      console.log(`Address:     ${wallet.address}`);
+      console.log(`Mnemonic:    ${wallet.mnemonic?.phrase}`);
+      console.log(`Private Key: ${wallet.privateKey}`);
+      console.log("\n⚠️  SAVE YOUR MNEMONIC AND PRIVATE KEY! If you lose them, you lose your funds.");
+    } catch (error: any) {
+      console.error("❌ Error creating wallet:", error.message);
+      console.log("\n💡 Usage:");
+      console.log("  Create new wallet:    npx ts-node index.ts create");
+      console.log("  Restore from mnemonic: npx ts-node index.ts create word1 word2 word3 ...");
+    }
   });
 
 // --- COMMAND: Check Balance ---
 program
   .command("balance <address>")
-  .description("Check the ETH balance of an address")
+  .description("Check the native token balance of an address")
   .action(async (address) => {
     try {
-      const balance = await provider.getBalance(address);
-      console.log(`Balance: ${ethers.formatEther(balance)} ETH`);
+      const opts = program.opts();
+      const chain = opts.chain as ChainKey;
+      const chainProvider = getProvider(chain);
+      
+      const balance = await chainProvider.getBalance(address);
+      const chainName = CHAIN_CONFIGS[chain].name;
+      console.log(`[${chainName}] Balance: ${ethers.formatEther(balance)} ${chain.toUpperCase()}`);
     } catch (error: any) {
       console.error("❌ Error:", error.message);
     }
   });
 
-// --- COMMAND: Send ETH ---
+// Minimal ERC-20 ABI for token operations
+const ERC20_ABI = [
+  "function transfer(address to, uint256 amount) returns (bool)",
+  "function balanceOf(address account) view returns (uint256)",
+  "function decimals() view returns (uint8)",
+  "function symbol() view returns (string)",
+  "function name() view returns (string)",
+];
+
+// --- COMMAND: Check Token Balance ---
+program
+  .command("token-balance <token> <address>")
+  .description("Check the ERC-20 token balance of an address (use symbol or address)")
+  .action(async (token, address) => {
+    try {
+      const opts = program.opts();
+      const chain = opts.chain as ChainKey;
+      const chainProvider = getProvider(chain);
+      const chainName = CHAIN_CONFIGS[chain].name;
+      
+      // Resolve token symbol to address if needed
+      const tokenAddress = resolveTokenAddress(token, chain);
+      console.log(`🔍 Token: ${tokenAddress}`);
+      
+      const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, chainProvider) as any;
+      
+      // Get token info and balance
+      const [balance, symbol, decimals, name] = await Promise.all([
+        tokenContract.balanceOf(address),
+        tokenContract.symbol(),
+        tokenContract.decimals(),
+        tokenContract.name(),
+      ]);
+
+      const formattedBalance = ethers.formatUnits(balance, decimals);
+      console.log(`[${chainName}] Token: ${name} (${symbol})`);
+      console.log(`Balance: ${formattedBalance} ${symbol}`);
+    } catch (error: any) {
+      console.error("❌ Error:", error.message);
+    }
+  });
+
+// --- COMMAND: Send Native Token ---
 program
   .command("send <to> <amount>")
-  .description("Send ETH to another address")
+  .description("Send native token (ETH/BNB/etc.) to address or @username")
   .requiredOption("-k, --key <privateKey>", "Your private key to sign the transaction")
   .action(async (to, amount, options) => {
     try {
-      const wallet = new ethers.Wallet(options.key, provider);
-      console.log(`🚀 Sending ${amount} ETH to ${to}...`);
+      const opts = program.opts();
+      const chain = opts.chain as ChainKey;
+      const chainProvider = getProvider(chain);
+      const chainName = CHAIN_CONFIGS[chain].name;
+      
+      // Resolve username to address if needed
+      const recipientAddress = await resolveUsernameToAddress(to);
+      
+      const wallet = new ethers.Wallet(options.key, chainProvider);
+      console.log(`🚀 [${chainName}] Sending ${amount} to ${recipientAddress}...`);
       
       const tx = await wallet.sendTransaction({
-        to: to,
+        to: recipientAddress,
         value: ethers.parseEther(amount),
       });
 
@@ -64,6 +284,50 @@ program
       console.log("✅ Transaction Confirmed!");
     } catch (error: any) {
       console.error("❌ Transfer Failed:", error.message);
+    }
+  });
+
+// --- COMMAND: Send ERC-20 Token ---
+program
+  .command("send-token <token> <to> <amount>")
+  .description("Send ERC-20 tokens to address or @username (use token symbol or address)")
+  .requiredOption("-k, --key <privateKey>", "Your private key to sign the transaction")
+  .action(async (token, to, amount, options) => {
+    try {
+      const opts = program.opts();
+      const chain = opts.chain as ChainKey;
+      const chainProvider = getProvider(chain);
+      const chainName = CHAIN_CONFIGS[chain].name;
+      
+      // Resolve token symbol to address if needed
+      const tokenAddress = resolveTokenAddress(token, chain);
+      console.log(`🔍 Token: ${tokenAddress}`);
+      
+      // Resolve username to address if needed
+      const recipientAddress = await resolveUsernameToAddress(to);
+      
+      const wallet = new ethers.Wallet(options.key, chainProvider);
+      const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, wallet) as any;
+
+      // Get token info for display
+      const [symbol, decimals] = await Promise.all([
+        tokenContract.symbol(),
+        tokenContract.decimals(),
+      ]);
+
+      console.log(`🪙 [${chainName}] Sending ${amount} ${symbol} to ${recipientAddress}...`);
+
+      // Parse amount according to token decimals
+      const amountInWei = ethers.parseUnits(amount, decimals);
+
+      // Send the transaction
+      const tx = await tokenContract.transfer(recipientAddress, amountInWei);
+
+      console.log(`🔗 Transaction Sent! Hash: ${tx.hash}`);
+      await tx.wait();
+      console.log("✅ Token Transfer Confirmed!");
+    } catch (error: any) {
+      console.error("❌ Token Transfer Failed:", error.message);
     }
   });
 
@@ -157,24 +421,31 @@ program
 // --- COMMAND: Register User ---
 program
   .command("register <username>")
-  .description("Register your username and public key with the server")
-  .requiredOption("-k, --key <privateKey>", "Your private key to derive the public key")
+  .description("Register your username, public key, and address with the server")
+  .requiredOption("-k, --key <privateKey>", "Your private key to derive the public key and address")
   .action(async (username, options) => {
     try {
-      // Derive the public key from the private key
+      // Normalize username (remove @ if present)
+      const normalizedUsername = normalizeUsername(username);
+      
+      // Derive the public key and address from the private key
+      const wallet = new ethers.Wallet(options.key);
       const publicKey = EthCrypto.publicKeyByPrivateKey(options.key);
+      const address = wallet.address;
 
-      console.log(`📡 Registering ${username} at ${API_BASE_URL}...`);
+      console.log(`📡 Registering @${normalizedUsername} at ${API_BASE_URL}...`);
+      console.log(`   Address: ${address}`);
 
-      // 2. POST to /api/register
+      // POST to /api/register
       const response = await fetch(`${API_BASE_URL}/api/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          username: username,
+          username: normalizedUsername,
           publicKey: publicKey,
+          address: address,
         }),
       });
 
@@ -182,7 +453,9 @@ program
 
       if (response.ok) {
         console.log("✅ Registration Successful!");
-        console.log("Server Response:", JSON.stringify(result, null, 2));
+        console.log(`   Username: @${normalizedUsername}`);
+        console.log(`   Address: ${address}`);
+        console.log("\n💡 Now you can receive crypto and messages using @" + normalizedUsername);
       } else {
         console.error(`❌ Registration Failed (${response.status}):`, result);
       }

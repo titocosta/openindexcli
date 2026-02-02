@@ -1,15 +1,37 @@
 {
-  "name": "openindexcli",
+  "name": "@openindex/openindexcli",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Multi-chain CLI for username-based crypto transfers and encrypted messaging",
+  "main": "dist/index.js",
+  "bin": {
+    "openindexcli": "dist/index.js"
+  },
+  "files": [
+    "dist",
+    "tokens.json"
+  ],
   "scripts": {
+    "build": "tsc",
+    "prepublishOnly": "npm run build",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
-  "keywords": [],
+  "keywords": [
+    "ethereum",
+    "crypto",
+    "wallet",
+    "cli",
+    "base",
+    "bsc",
+    "messaging",
+    "end-to-end encryption",
+    "e2ee",
+    "OpenClaw",
+    "Clawdbot",
+    "Moltbot"
+  ],
   "author": "",
   "license": "ISC",
-  "type": "commonjs",
+  "type": "module",
   "dependencies": {
     "commander": "^14.0.3",
     "dotenv": "^17.2.3",
