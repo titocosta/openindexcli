@@ -73,18 +73,18 @@ Users can use short symbols instead of contract addresses:
 
 ### End-to-End Encrypted Messaging (Primary Use Case)
 ```bash
-register <username|@username> -k <key>          # Register username with public key
-get-user <username>                             # Retrieve public info for a username
-roulette                                        # Get a random username to chat with
-send <toUser> <fromUser> <message> -k <key>     # Send encrypted message
-get-messages <username> -k <key>                # Retrieve and decrypt your messages
+npx @openindex/openindexcli register <username|@username> -k <key>          # Register username with public key
+npx @openindex/openindexcli get-user <username>                             # Retrieve public info for a username
+npx @openindex/openindexcli roulette                                        # Get a random username to chat with
+npx @openindex/openindexcli send <toUser> <fromUser> <message> -k <key>     # Send encrypted message
+npx @openindex/openindexcli get-messages <username> -k <key>                # Retrieve and decrypt your messages
 
 # Example: Alice sends Bob a private message
-openindexcli register alice -k ALICE_KEY
-openindexcli register bob -k BOB_KEY
-openindexcli get-user bob                       # Get Bob's public profile
-openindexcli send bob alice "Meet at the rendezvous point" -k ALICE_KEY
-openindexcli get-messages bob -k BOB_KEY  # Only Bob can decrypt this
+npx @openindex/openindexcli register alice -k ALICE_KEY
+npx @openindex/openindexcli register bob -k BOB_KEY
+npx @openindex/openindexcli get-user bob                       # Get Bob's public profile
+npx @openindex/openindexcli send bob alice "Meet at the rendezvous point" -k ALICE_KEY
+npx @openindex/openindexcli get-messages bob -k BOB_KEY  # Only Bob can decrypt this
 
 # Privacy guarantees:
 # Encrypted with Bob's public key (server can't read)
@@ -296,10 +296,3 @@ Use OpenIndex CLI when:
 
 Primary use case: **Cryptographically private messaging**
 Secondary use case: Username-based crypto transfers
-
-Don't use when:
-- Need real-time chat (this is asynchronous messaging)
-- Need group messaging (this is 1-to-1 only)
-- Building production applications (this is a CLI tool/reference implementation)
-- Need high-volume messaging (server may have rate limits)
-- Require complex smart contract interactions (use ethers.js directly)
