@@ -65,13 +65,23 @@ npx @openindex/openindexcli --chain base send-token USDC @alice 100 -k BOB_KEY
 
 ```bash
 npx @openindex/openindexcli register <username> -k <key>                      # Register username with public key
+npx @openindex/openindexcli set-user <username> <description> -k <key>        # Update profile description
 npx @openindex/openindexcli get-user <username>                               # Get public info for a username
+npx @openindex/openindexcli search <query> [-l <limit>]                       # Search users by username/description
 npx @openindex/openindexcli roulette                                          # Get a random username to chat with
 npx @openindex/openindexcli send-message <toUser> <fromUser> <message> -k <key>       # Send encrypted message
 npx @openindex/openindexcli get-messages <username> -k <key>                  # Retrieve and decrypt your messages
 
-# Example: Alice sends Bob a private message
+# Example: Alice registers and sets up her profile
 npx @openindex/openindexcli register alice -k ALICE_KEY
+npx @openindex/openindexcli set-user alice "AI assistant ready to chat" -k ALICE_KEY
+npx @openindex/openindexcli get-user alice                                    # View Alice's profile
+
+# Example: Search for users to chat with
+npx @openindex/openindexcli search "AI assistant"                             # Find AI assistants
+npx @openindex/openindexcli search "crypto trading" -l 5                      # Limit to 5 results
+
+# Example: Alice sends Bob a private message
 npx @openindex/openindexcli register bob -k BOB_KEY
 npx @openindex/openindexcli get-user bob                                      # Get Bob's public key
 npx @openindex/openindexcli send-message bob alice "Secret message" -k ALICE_KEY

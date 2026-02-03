@@ -452,10 +452,98 @@ program
       const data = await response.json();
       
       console.log(`👤 User Profile: @${normalizedUsername}`);
+      if(data.description) {
+        console.log(`💬 Description: ${data.description}`);
+      }
       console.log(`📍 Address:    ${data.address || 'N/A'}`);
       console.log(`🔑 Public Key: ${data.publicKey || 'N/A'}`);
     } catch (error: any) {
       console.error("❌ Error fetching user:", error.message);
+    }
+  });
+
+// --- COMMAND: Set User Profile ---
+program
+  .command("set-user <username> <description>")
+  .description("Update your profile description (requires signature for authorization)")
+  .requiredOption("-k, --key <privateKey>", "Your private key to sign the update")
+  .action(async (username, description, options) => {
+    try {
+      const normalizedUsername = normalizeUsername(username);
+      const wallet = new ethers.Wallet(options.key);
+
+      // Create a message to sign for authorization
+      const timestamp = Date.now();
+      const message = `set-user:${normalizedUsername}:${description}:${timestamp}`;
+      const signature = await wallet.signMessage(message);
+
+      console.log(`📝 Updating profile for @${normalizedUsername}...`);
+
+      const response = await fetch(`${API_BASE_URL}/cli/user/${normalizedUsername}`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          description: description,
+          timestamp: timestamp,
+          signature: signature,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (response.ok) {
+        console.log("✅ Profile Updated!");
+        console.log(`   Username:    @${normalizedUsername}`);
+        console.log(`   Description: ${description}`);
+      } else {
+        console.error(`❌ Update Failed (${response.status}):`, result.error || result);
+      }
+    } catch (error: any) {
+      console.error("❌ Error:", error.message);
+    }
+  });
+
+// --- COMMAND: Search Users ---
+program
+  .command("search <query>")
+  .description("Search for users by username or description (hybrid BM25 + semantic search)")
+  .option("-l, --limit <number>", "Maximum number of results", "10")
+  .action(async (query, options) => {
+    try {
+      const limit = parseInt(options.limit, 10);
+      console.log(`🔍 Searching for "${query}"...`);
+
+      const response = await fetch(`${API_BASE_URL}/cli/search?q=${encodeURIComponent(query)}&limit=${limit}`);
+
+      if (!response.ok) {
+        const error = await response.json();
+        throw new Error(error.error || `Server returned ${response.status}`);
+      }
+
+      const results = await response.json();
+
+      if (results.length === 0) {
+        console.log("😕 No users found matching your query.");
+        return;
+      }
+
+      console.log(`\n✨ Found ${results.length} user(s):\n`);
+
+      for (const user of results) {
+        console.log(`👤 @${user.username}`);
+        if (user.description) {
+          console.log(`   ${user.description}`);
+        }
+        console.log(`   📍 ${user.address}`);
+        console.log(`   📊 Score: ${(user.score * 100).toFixed(1)}%`);
+        console.log();
+      }
+
+      console.log(`💬 Start a chat: npx @openindex/openindexcli send-message <username> <your_username> "Hello!" -k <key>`);
+    } catch (error: any) {
+      console.error("❌ Error:", error.message);
     }
   });
 
@@ -467,13 +555,13 @@ program
     try {
       console.log("🎲 Spinning the wheel...");
       const response = await fetch(`${API_BASE_URL}/cli/roulette`);
-      
+
       if (!response.ok) {
          throw new Error(`Server returned ${response.status}: ${response.statusText}`);
       }
 
       const data = await response.json();
-      
+
       if (data.username) {
         console.log(`✨ You matched with: @${data.username}`);
         console.log(`💬 Say hello: npx @openindex/openindexcli send-message ${data.username} <your_username> "Hello!" -k <key>`);
