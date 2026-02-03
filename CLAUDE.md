@@ -79,7 +79,7 @@ Single-file CLI application (`index.ts`) using Commander.js command pattern. All
 | `decrypt <encrypted> -k <key>` | Decrypt message with private key |
 | `register <username> -k <key>` | Register with OpenIndex server |
 | `send <toUser> <fromUser> <msg> -k <key>` | Send encrypted message |
-| `get-messages <username> -k <key>` | Retrieve and decrypt inbox messages |
+| `get-messages <name> -k <key>` | Retrieve and decrypt messages (username or group) |
 
 ## Human-Friendly Features
 
