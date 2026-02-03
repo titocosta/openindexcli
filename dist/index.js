@@ -64,11 +64,19 @@ function getProvider(chain = "eth") {
     }
     return new ethers.JsonRpcProvider(config.rpcUrl);
 }
+// Helper to get private key from options or environment variable
+function getPrivateKey(options) {
+    const key = options.key || process.env.OPENINDEX_PRIVATE_KEY;
+    if (!key) {
+        throw new Error("Private key required. Use --key option or set OPENINDEX_PRIVATE_KEY environment variable.");
+    }
+    return key;
+}
 const program = new Command();
 program
     .name("openindexcli")
     .description("OpenIndex CLI for end-to-end encrypted messaging and crypto transfers")
-    .version("1.0.9")
+    .version("1.0.10")
     .option("--chain <chain>", "Blockchain to use (eth, base, bsc)", "eth");
 // --- COMMAND: List Chains ---
 program
@@ -140,7 +148,9 @@ program
         console.log(`Address:     ${wallet.address}`);
         console.log(`Mnemonic:    ${wallet.mnemonic?.phrase}`);
         console.log(`Private Key: ${wallet.privateKey}`);
-        console.log("\n⚠️  SAVE YOUR MNEMONIC AND PRIVATE KEY! If you lose them, you lose your funds.");
+        console.log(`\n💡 Run this to set your key in the current shell:`);
+        console.log(`   export OPENINDEX_PRIVATE_KEY=${wallet.privateKey}`);
+        console.log("\n⚠️  SAVE YOUR MNEMONIC! If you lose it, you lose your funds.");
     }
     catch (error) {
         console.error("❌ Error creating wallet:", error.message);
@@ -207,16 +217,17 @@ program
 program
     .command("send-eth <to> <amount>")
     .description("Send native token (ETH/BNB/etc.) to address or @username")
-    .requiredOption("-k, --key <privateKey>", "Your private key to sign the transaction")
+    .option("-k, --key <privateKey>", "Private key (or set OPENINDEX_PRIVATE_KEY)")
     .action(async (to, amount, options) => {
     try {
+        const privateKey = getPrivateKey(options);
         const opts = program.opts();
         const chain = opts.chain;
         const chainProvider = getProvider(chain);
         const chainName = CHAIN_CONFIGS[chain].name;
         // Resolve username to address if needed
         const recipientAddress = await resolveUsernameToAddress(to);
-        const wallet = new ethers.Wallet(options.key, chainProvider);
+        const wallet = new ethers.Wallet(privateKey, chainProvider);
         console.log(`🚀 [${chainName}] Sending ${amount} to ${recipientAddress}...`);
         const tx = await wallet.sendTransaction({
             to: recipientAddress,
@@ -234,9 +245,10 @@ program
 program
     .command("send-token <token> <to> <amount>")
     .description("Send ERC-20 tokens to address or @username (use token symbol or address)")
-    .requiredOption("-k, --key <privateKey>", "Your private key to sign the transaction")
+    .option("-k, --key <privateKey>", "Private key (or set OPENINDEX_PRIVATE_KEY)")
     .action(async (token, to, amount, options) => {
     try {
+        const privateKey = getPrivateKey(options);
         const opts = program.opts();
         const chain = opts.chain;
         const chainProvider = getProvider(chain);
@@ -246,7 +258,7 @@ program
         console.log(`🔍 Token: ${tokenAddress}`);
         // Resolve username to address if needed
         const recipientAddress = await resolveUsernameToAddress(to);
-        const wallet = new ethers.Wallet(options.key, chainProvider);
+        const wallet = new ethers.Wallet(privateKey, chainProvider);
         const tokenContract = new ethers.Contract(tokenAddress, ERC20_ABI, wallet);
         // Get token info for display
         const [symbol, decimals] = await Promise.all([
@@ -270,10 +282,11 @@ program
 program
     .command("sign <message>")
     .description("Sign a text message using your private key")
-    .requiredOption("-k, --key <privateKey>", "Your private key")
+    .option("-k, --key <privateKey>", "Private key (or set OPENINDEX_PRIVATE_KEY)")
     .action(async (message, options) => {
     try {
-        const wallet = new ethers.Wallet(options.key);
+        const privateKey = getPrivateKey(options);
+        const wallet = new ethers.Wallet(privateKey);
         const signature = await wallet.signMessage(message);
         console.log("📝 Message:", message);
         console.log("✍️ Signature:", signature);
@@ -301,10 +314,11 @@ program
 program
     .command("get-address")
     .description("Derive the Ethereum address from your Private Key")
-    .requiredOption("-k, --key <privateKey>", "Your private key")
+    .option("-k, --key <privateKey>", "Private key (or set OPENINDEX_PRIVATE_KEY)")
     .action((options) => {
     try {
-        const wallet = new ethers.Wallet(options.key);
+        const privateKey = getPrivateKey(options);
+        const wallet = new ethers.Wallet(privateKey);
         console.log("📍 Your Wallet Address:");
         console.log(wallet.address);
     }
@@ -317,9 +331,10 @@ program
 program
     .command("get-pubkey")
     .description("Derive the uncompressed Public Key from your Private Key")
-    .requiredOption("-k, --key <privateKey>", "Your private key")
+    .option("-k, --key <privateKey>", "Private key (or set OPENINDEX_PRIVATE_KEY)")
     .action((options) => {
-    const publicKey = EthCrypto.publicKeyByPrivateKey(options.key);
+    const privateKey = getPrivateKey(options);
+    const publicKey = EthCrypto.publicKeyByPrivateKey(privateKey);
     console.log("🔑 Your Public Key (Share this to receive secrets):");
     console.log(publicKey);
 });
@@ -344,11 +359,12 @@ program
 program
     .command("decrypt <encryptedString>")
     .description("Decrypt a message using your private key")
-    .requiredOption("-k, --key <privateKey>", "Your private key")
+    .option("-k, --key <privateKey>", "Private key (or set OPENINDEX_PRIVATE_KEY)")
     .action(async (encryptedString, options) => {
     try {
+        const privateKey = getPrivateKey(options);
         const payload = EthCrypto.cipher.parse(encryptedString);
-        const message = await EthCrypto.decryptWithPrivateKey(options.key, payload);
+        const message = await EthCrypto.decryptWithPrivateKey(privateKey, payload);
         console.log("🔓 Decrypted Message:");
         console.log(message);
     }
@@ -387,11 +403,12 @@ program
 program
     .command("set-user <username> <description>")
     .description("Update your profile description (requires signature for authorization)")
-    .requiredOption("-k, --key <privateKey>", "Your private key to sign the update")
+    .option("-k, --key <privateKey>", "Private key (or set OPENINDEX_PRIVATE_KEY)")
     .action(async (username, description, options) => {
     try {
+        const privateKey = getPrivateKey(options);
         const normalizedUsername = normalizeUsername(username);
-        const wallet = new ethers.Wallet(options.key);
+        const wallet = new ethers.Wallet(privateKey);
         // Create a message to sign for authorization
         const timestamp = Date.now();
         const message = `set-user:${normalizedUsername}:${description}:${timestamp}`;
@@ -486,14 +503,15 @@ program
 program
     .command("register <username>")
     .description("Register your username, public key, and address with the server")
-    .requiredOption("-k, --key <privateKey>", "Your private key to derive the public key and address")
+    .option("-k, --key <privateKey>", "Private key (or set OPENINDEX_PRIVATE_KEY)")
     .action(async (username, options) => {
     try {
+        const privateKey = getPrivateKey(options);
         // Normalize username (remove @ if present)
         const normalizedUsername = normalizeUsername(username);
         // Derive the public key and address from the private key
-        const wallet = new ethers.Wallet(options.key);
-        const publicKey = EthCrypto.publicKeyByPrivateKey(options.key);
+        const wallet = new ethers.Wallet(privateKey);
+        const publicKey = EthCrypto.publicKeyByPrivateKey(privateKey);
         const address = wallet.address;
         console.log(`📡 Registering @${normalizedUsername} at ${API_BASE_URL}...`);
         console.log(`   Address: ${address}`);
@@ -528,9 +546,10 @@ program
 program
     .command("send-message <senderUsername> <toUsername> <message>")
     .description("Send a double-enveloped, blinded message")
-    .requiredOption("-k, --key <privateKey>", "Your private key to sign the message")
+    .option("-k, --key <privateKey>", "Private key (or set OPENINDEX_PRIVATE_KEY)")
     .action(async (senderUsername, toUsername, message, options) => {
     try {
+        const privateKey = getPrivateKey(options);
         // 1. Discovery: Get recipient's public key
         const keyResp = await fetch(`${API_BASE_URL}/cli/user/${toUsername}`);
         const { publicKey: recipientPubKey } = await keyResp.json();
@@ -544,7 +563,7 @@ program
         const encrypted = await EthCrypto.encryptWithPublicKey(recipientPubKey, innerPayload);
         const encryptedString = EthCrypto.cipher.stringify(encrypted);
         // 4. Sign the ciphertext for integrity
-        const wallet = new ethers.Wallet(options.key);
+        const wallet = new ethers.Wallet(privateKey);
         const signature = await wallet.signMessage(encryptedString);
         // 5. Blind the Recipient for the server
         const blindedRecipient = hashUsername(toUsername);
@@ -567,12 +586,10 @@ program
 program
     .command("get-messages <name>")
     .description("Fetch and unwrap messages from your inbox or a group inbox")
-    .requiredOption("-k, --key <privateKey>", "Your private key to decrypt")
+    .option("-k, --key <privateKey>", "Private key (or set OPENINDEX_PRIVATE_KEY)")
     .action(async (name, options) => {
     try {
-        if (!options.key) {
-            throw new Error("Private key is required");
-        }
+        const privateKey = getPrivateKey(options);
         // Check if this is a group or a username
         const group = loadGroup(name);
         const inboxId = group ? group.groupInboxId : hashUsername(name);
@@ -619,7 +636,7 @@ program
             // Regular messages use asymmetric encryption (E2EE)
             // 1. Decrypt the Envelope
             const payload = EthCrypto.cipher.parse(msg.message);
-            const decryptedJson = await EthCrypto.decryptWithPrivateKey(options.key, payload);
+            const decryptedJson = await EthCrypto.decryptWithPrivateKey(privateKey, payload);
             const { text, senderId, createdAt, ...data } = JSON.parse(decryptedJson);
             // 2. Verify Signature (Authencity check)
             if (!msg.signature) {
@@ -677,7 +694,7 @@ program
                 // 5. Redistribute the NEW key to the remaining members
                 // We reuse the distribution logic from 'create-group'
                 console.log("🔄 Rotating keys for remaining members...");
-                await redistributeKeys(options.key, data.groupId, group.members);
+                await redistributeKeys(privateKey, data.groupId, group.members);
                 console.log(`✅ Group "${data.groupId}" is now secure.`);
             }
             else {
@@ -692,15 +709,16 @@ program
 program
     .command("create-group <groupName> <members...>")
     .description("Create a group and distribute your Sender Key to members")
-    .requiredOption("-k, --key <privateKey>", "Your private key for authentication")
+    .option("-k, --key <privateKey>", "Private key (or set OPENINDEX_PRIVATE_KEY)")
     .action(async (groupName, members, options) => {
     try {
+        const privateKey = getPrivateKey(options);
         console.log(`Creating group "${groupName}" with ${members.length} members...`);
         // 1. Generate your unique Sender Key for this group
         const myChainKey = randomBytes(32).toString('hex');
         const mySigningKey = EthCrypto.createIdentity(); // New ephemeral signing key
         // Derive creator's public key for unique group inbox ID
-        const creatorPubKey = EthCrypto.publicKeyByPrivateKey(options.key);
+        const creatorPubKey = EthCrypto.publicKeyByPrivateKey(privateKey);
         const groupInboxId = hashGroupId(groupName, creatorPubKey);
         // 2. Distribute to each member via their 1-on-1 "Envelope"
         for (const member of members) {
@@ -724,7 +742,7 @@ program
                 body: JSON.stringify({
                     recipientHash: hashUsername(member),
                     message: EthCrypto.cipher.stringify(encrypted),
-                    signature: await new ethers.Wallet(options.key).signMessage(EthCrypto.cipher.stringify(encrypted))
+                    signature: await new ethers.Wallet(privateKey).signMessage(EthCrypto.cipher.stringify(encrypted))
                 })
             });
         }
