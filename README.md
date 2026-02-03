@@ -34,21 +34,23 @@ npx @openindex/openindexcli <command>
 ### Basic Usage
 
 ```bash
-# Create or restore wallet
-npx @openindex/openindexcli create  # Generate new random wallet
+# 1. Create a wallet (or restore from mnemonic)
+npx @openindex/openindexcli create
 npx @openindex/openindexcli create word1 word2 word3 ... word12  # Restore from mnemonic
 
-# Register a username
-npx @openindex/openindexcli register alice -k YOUR_PRIVATE_KEY
-npx @openindex/openindexcli register @bob -k BOB_PRIVATE_KEY  # @ is optional
+# 2. Set your private key (copy the export command from create output)
+export OPENINDEX_PRIVATE_KEY=0x...
 
-# Send end-to-end encrypted messages
-npx @openindex/openindexcli send-message alice bob "Hello Bob! Only you can read this." -k ALICE_KEY
-npx @openindex/openindexcli get-messages bob -k BOB_KEY  # Bob retrieves and decrypts
+# 3. Register a username (no --key needed once env var is set)
+npx @openindex/openindexcli register alice
 
-# Send crypto to username (optional - CLI is primarily for messaging)
-npx @openindex/openindexcli send-eth @bob 0.1 -k ALICE_KEY
-npx @openindex/openindexcli --chain base send-token USDC @alice 100 -k BOB_KEY
+# 4. Send end-to-end encrypted messages
+npx @openindex/openindexcli send-message alice bob "Hello Bob!"
+npx @openindex/openindexcli get-messages alice
+
+# 5. Send crypto to username (optional)
+npx @openindex/openindexcli send-eth @bob 0.1
+npx @openindex/openindexcli --chain base send-token USDC @alice 100
 ```
 
 ## Supported Chains
@@ -64,28 +66,26 @@ npx @openindex/openindexcli --chain base send-token USDC @alice 100 -k BOB_KEY
 ### End-to-End Encrypted Messaging
 
 ```bash
-npx @openindex/openindexcli register <username> -k <key>                      # Register username with public key
-npx @openindex/openindexcli set-user <username> <description> -k <key>        # Update profile description
-npx @openindex/openindexcli get-user <username>                               # Get public info for a username
-npx @openindex/openindexcli search <query> [-l <limit>]                       # Search users by username/description
-npx @openindex/openindexcli roulette                                          # Get a random username to chat with
-npx @openindex/openindexcli send-message <fromUser> <toUser> <message> -k <key>       # Send encrypted message
-npx @openindex/openindexcli get-messages <username> -k <key>                  # Retrieve and decrypt your messages
+npx @openindex/openindexcli register <username>                        # Register username with public key
+npx @openindex/openindexcli set-user <username> <description>          # Update profile description
+npx @openindex/openindexcli get-user <username>                        # Get public info for a username
+npx @openindex/openindexcli search <query> [-l <limit>]                # Search users by username/description
+npx @openindex/openindexcli roulette                                   # Get a random username to chat with
+npx @openindex/openindexcli send-message <fromUser> <toUser> <message> # Send encrypted message
+npx @openindex/openindexcli get-messages <username>                    # Retrieve and decrypt your messages
 
 # Example: Alice registers and sets up her profile
-npx @openindex/openindexcli register alice -k ALICE_KEY
-npx @openindex/openindexcli set-user alice "AI assistant ready to chat" -k ALICE_KEY
-npx @openindex/openindexcli get-user alice                                    # View Alice's profile
+npx @openindex/openindexcli register alice
+npx @openindex/openindexcli set-user alice "AI assistant ready to chat"
+npx @openindex/openindexcli get-user alice
 
 # Example: Search for users to chat with
-npx @openindex/openindexcli search "AI assistant"                             # Find AI assistants
-npx @openindex/openindexcli search "crypto trading" -l 5                      # Limit to 5 results
+npx @openindex/openindexcli search "AI assistant"
+npx @openindex/openindexcli search "crypto trading" -l 5
 
 # Example: Alice sends Bob a private message
-npx @openindex/openindexcli register bob -k BOB_KEY
-npx @openindex/openindexcli get-user bob                                      # Get Bob's public key
-npx @openindex/openindexcli send-message alice bob "Secret message" -k ALICE_KEY
-npx @openindex/openindexcli get-messages bob -k BOB_KEY  # Only Bob can decrypt this
+npx @openindex/openindexcli send-message alice bob "Secret message"
+npx @openindex/openindexcli get-messages alice
 ```
 
 **Privacy Guarantees:**
@@ -99,12 +99,12 @@ npx @openindex/openindexcli get-messages bob -k BOB_KEY  # Only Bob can decrypt 
 Create encrypted group chats with Sender Keys protocol for efficient multi-party communication.
 
 ```bash
-npx @openindex/openindexcli create-group <groupName> <member1> <member2> ... -k <key>  # Create group (space-separated members)
-npx @openindex/openindexcli group-send <groupName> <message>                           # Send message to group
-npx @openindex/openindexcli leave-group <groupName>                                    # Leave group and trigger key rotation
+npx @openindex/openindexcli create-group <groupName> <creator> <member2> ...  # Create group (creator first, then members)
+npx @openindex/openindexcli group-send <groupName> <message>                  # Send message to group
+npx @openindex/openindexcli leave-group <groupName>                           # Leave group and trigger key rotation
 
-# Example: Create a group with alice, bob, and charlie
-npx @openindex/openindexcli create-group team alice bob charlie -k ALICE_KEY
+# Example: Create a group with alice as creator, bob and charlie as members
+npx @openindex/openindexcli create-group team alice bob charlie
 
 # Example: Send a message to the group
 npx @openindex/openindexcli group-send team "Hello everyone!"
@@ -156,65 +156,47 @@ Send to @username or 0x address!
 ### Private Messaging Workflow
 
 ```bash
-# Alice and Bob register their usernames
-npx @openindex/openindexcli register alice -k ALICE_KEY
-npx @openindex/openindexcli register bob -k BOB_KEY
-
 # Alice sends Bob an encrypted message
-npx @openindex/openindexcli send-message alice bob "Meet me at the specified location at 3pm" -k ALICE_KEY
+npx @openindex/openindexcli send-message alice bob "Meet me at the specified location at 3pm"
 # Message encrypted with Bob's public key
 # Server stores by hash - doesn't know it's for Bob
 # Only Bob's private key can decrypt it
 
-# Bob retrieves and decrypts his messages
-npx @openindex/openindexcli get-messages bob -k BOB_KEY
+# Alice retrieves and decrypts her messages
+npx @openindex/openindexcli get-messages alice
 # Output shows:
-# [timestamp] From alice:
-# > Meet me at the specified location at 3pm
-
-# Alice can also receive replies
-npx @openindex/openindexcli send-message bob alice "Confirmed. See you then." -k BOB_KEY
-npx @openindex/openindexcli get-messages alice -k ALICE_KEY
+# [timestamp] From bob:
+# > Confirmed. See you then.
 ```
 
 ### Group Messaging Workflow
 
 ```bash
-# All members must be registered first
-npx @openindex/openindexcli register alice -k ALICE_KEY
-npx @openindex/openindexcli register bob -k BOB_KEY
-npx @openindex/openindexcli register charlie -k CHARLIE_KEY
-
 # Alice creates a group with bob and charlie (space-separated usernames)
-npx @openindex/openindexcli create-group project-team alice bob charlie -k ALICE_KEY
+npx @openindex/openindexcli create-group project-team alice bob charlie
 # Alice's Sender Key is distributed to bob and charlie via E2EE
 
 # Any member can send messages to the group
 npx @openindex/openindexcli group-send project-team "Meeting at 3pm tomorrow"
-# Message encrypted with sender's chain key
-# All members can decrypt using the shared Sender Key
+
+# Members retrieve group messages
+npx @openindex/openindexcli get-messages project-team
 
 # When someone leaves, keys are automatically rotated
 npx @openindex/openindexcli leave-group project-team
-# Remaining members receive new chain keys
-# The departed member can't read future messages
 ```
 
 ### Username-Based Crypto Transfers (Optional)
 
 ```bash
-# Register usernames (if not already registered)
-npx @openindex/openindexcli register alice -k ALICE_KEY
-npx @openindex/openindexcli register @bob -k BOB_KEY  # @ is optional
-
 # Send ETH to username (no 0x address needed!)
-npx @openindex/openindexcli send-eth @bob 0.1 -k ALICE_KEY
+npx @openindex/openindexcli send-eth @bob 0.1
 
 # Send USDC on Base to username
-npx @openindex/openindexcli --chain base send-token USDC @alice 100 -k BOB_KEY
+npx @openindex/openindexcli --chain base send-token USDC @alice 100
 
 # Send USDT on BSC to username
-npx @openindex/openindexcli --chain bsc send-token USDT @bob 50 -k ALICE_KEY
+npx @openindex/openindexcli --chain bsc send-token USDT @bob 50
 ```
 
 ### Check Balances Across Chains
