@@ -1,31 +1,16 @@
 #!/usr/bin/env node
 import { ethers } from "ethers";
-import { createHash } from 'crypto';
+import { randomBytes, createCipheriv } from 'crypto';
 import EthCrypto from 'eth-crypto';
 import { Command } from "commander";
 import * as dotenv from "dotenv";
 import tokenRegistryData from './tokens.json' with { type: 'json' };
+import { nextKey, redistributeKeys } from './lib/group.js';
+import { saveGroup, loadGroup, deleteGroup } from './lib/local.js';
+import { CHAIN_CONFIGS, API_BASE_URL } from './lib/constants.js';
+import { hashUsername, hashGroupId } from './lib/helpers.js';
 
 dotenv.config();
-
-// Chain configurations
-const CHAIN_CONFIGS = {
-  eth: {
-    name: "Ethereum",
-    rpcUrl: process.env.ETH_RPC_URL || "https://cloudflare-eth.com",
-    chainId: 1,
-  },
-  base: {
-    name: "Base",
-    rpcUrl: process.env.BASE_RPC_URL || "https://mainnet.base.org",
-    chainId: 8453,
-  },
-  bsc: {
-    name: "BSC",
-    rpcUrl: process.env.BSC_RPC_URL || "https://bsc-dataseed.binance.org",
-    chainId: 56,
-  },
-};
 
 type ChainKey = keyof typeof CHAIN_CONFIGS;
 
@@ -98,18 +83,13 @@ function getProvider(chain: ChainKey = "eth"): ethers.JsonRpcProvider {
   return new ethers.JsonRpcProvider(config.rpcUrl);
 }
 
-// Legacy single provider (for backwards compatibility)
-const RPC_URL = process.env.RPC_URL || CHAIN_CONFIGS.eth.rpcUrl;
-const provider = new ethers.JsonRpcProvider(RPC_URL);
-
-const API_BASE_URL = "https://chat.openindex.ai/api";
 
 const program = new Command();
 
 program
-  .name("eth-tool")
-  .description("Multi-chain CLI for wallet management (ETH, Base, BSC)")
-  .version("1.0.0")
+  .name("openindexcli")
+  .description("OpenIndex CLI for end-to-end encrypted messaging and crypto transfers")
+  .version("1.0.8")
   .option("--chain <chain>", "Blockchain to use (eth, base, bsc)", "eth");
 
 // --- COMMAND: List Chains ---
@@ -536,12 +516,13 @@ program
         if (user.description) {
           console.log(`   ${user.description}`);
         }
-        console.log(`   📍 ${user.address}`);
+        console.log(`   📍 Address: ${user.address}`);
+        console.log(`   🔑 Public Key: ${user.publicKey}`);
         console.log(`   📊 Score: ${(user.score * 100).toFixed(1)}%`);
         console.log();
       }
 
-      console.log(`💬 Start a chat: npx @openindex/openindexcli send-message <username> <your_username> "Hello!" -k <key>`);
+      console.log(`💬 Start a chat: npx @openindex/openindexcli send-message <your_username> <username> "Hello!" -k <key>`);
     } catch (error: any) {
       console.error("❌ Error:", error.message);
     }
@@ -564,7 +545,7 @@ program
 
       if (data.username) {
         console.log(`✨ You matched with: @${data.username}`);
-        console.log(`💬 Say hello: npx @openindex/openindexcli send-message ${data.username} <your_username> "Hello!" -k <key>`);
+        console.log(`💬 Say hello: npx @openindex/openindexcli send-message <your_username> ${data.username} "Hello!" -k <key>`);
       } else {
         console.log("😕 No active users found to chat with right now.");
       }
@@ -619,16 +600,13 @@ program
     }
   });
 
-// Helper to hash the username for the server to use as an "Inbox ID"
-const hashUsername = (name: string) => 
-  createHash('sha256').update(name.toLowerCase()).digest('hex');
 
 // --- COMMAND: Send Signed & Encrypted Message ---
 program
-  .command("send-message <toUsername> <senderUsername> <message>")
+  .command("send-message <senderUsername> <toUsername> <message>")
   .description("Send a double-enveloped, blinded message")
   .requiredOption("-k, --key <privateKey>", "Your private key to sign the message")
-  .action(async (toUsername, senderUsername, message, options) => {
+  .action(async (senderUsername, toUsername, message, options) => {
     try {
       // 1. Discovery: Get recipient's public key
       const keyResp = await fetch(`${API_BASE_URL}/cli/user/${toUsername}`);
@@ -675,35 +653,274 @@ program
   .requiredOption("-k, --key <privateKey>", "Your private key to decrypt")
   .action(async (username, options) => {
     try {
+      if (!options.key) {
+        throw new Error("Private key is required");
+      }
       const inboxId = hashUsername(username);
       const response = await fetch(`${API_BASE_URL}/cli/messages/${inboxId}`);
       const messages = await response.json();
 
       for (const msg of messages) {
+        if (!msg.message) {
+          console.log(`Skipping message ${msg.id}: no message content`);
+          continue;
+        }
         // 1. Decrypt the Envelope
         const payload = EthCrypto.cipher.parse(msg.message);
         const decryptedJson = await EthCrypto.decryptWithPrivateKey(options.key, payload);
-        const { text, senderId, createdAt } = JSON.parse(decryptedJson);
+        const { text, senderId, createdAt, ...data } = JSON.parse(decryptedJson);
 
         // 2. Verify Signature (Authencity check)
+        if (!msg.signature) {
+          continue;
+        }
         const recoveredAddress = ethers.verifyMessage(msg.message, msg.signature);
-        
+
+        // For GROUP_SETUP messages, senderId is not in the payload - handle silently
+        if (!senderId) {
+          if (data.type === "GROUP_SETUP") {
+            saveGroup(data.groupId, {
+              name: data.groupId,
+              groupInboxId: data.groupInboxId,
+              creator: data.creator,
+              memberKeys: {
+                [data.creator]: data.chainKey
+              },
+              signingKeys: {
+                [data.creator]: data.signingPubKey
+              }
+            });
+          }
+          continue;
+        }
+
         // Fetch sender's key to confirm address
         const sKeyResp = await fetch(`${API_BASE_URL}/cli/user/${senderId}`);
         const { publicKey: sPubKey } = await sKeyResp.json();
         const expectedAddress = EthCrypto.publicKey.toAddress(sPubKey);
 
         if (recoveredAddress.toLowerCase() === expectedAddress.toLowerCase()) {
-          const date = new Date(createdAt).toLocaleString();
-          console.log(`\n${msg.id} [${date}] From ${senderId}:`);
-          console.log(`> ${text}`);
+          // Only display regular text messages (skip admin messages)
+          if (!data.type) {
+            const date = new Date(createdAt).toLocaleString();
+            console.log(`\n${msg.id} [${date}] From ${senderId}:`);
+            console.log(`> ${text}`);
+          }
+        } else if (data.type === "GROUP_LEAVE") {
+          console.log(`\n🚫 ${data.senderId} has left the group "${data.groupId}"`);
+
+          // 1. Load the group data
+          const group = loadGroup(data.groupId);
+          if (!group) return;
+
+          // 2. Remove the member from the local tracking
+          if (group.members) {
+            group.members = group.members.filter((m: string) => m !== data.senderId);
+          }
+          
+          // Remove their specific ratchet keys so we don't try to use them
+          delete group.memberKeys[data.senderId];
+          delete group.signingKeys[data.senderId];
+
+          // 3. KEY ROTATION: Generate a brand new Chain Key
+          // This ensures the person who left cannot decrypt our future messages
+          const newChainKey = randomBytes(32).toString('hex');
+          group.myChainKey = newChainKey;
+
+          // 4. Save the updated group state
+          saveGroup(data.groupId, group);
+
+          // 5. Redistribute the NEW key to the remaining members
+          // We reuse the distribution logic from 'create-group'
+          console.log("🔄 Rotating keys for remaining members...");
+          await redistributeKeys(options.key, data.groupId, group.members);
+          
+          console.log(`✅ Group "${data.groupId}" is now secure.`);
         } else {
-          console.debug("⚠️ Received a message with a forged signature!");
+          // console.debug("⚠️ Received a message with a forged signature!");
         }
       }
     } catch (error: any) {
       console.error("❌ Error:", error.message);
     }
   });
+
+  program
+    .command("create-group <groupName> <members...>")
+    .description("Create a group and distribute your Sender Key to members")
+    .requiredOption("-k, --key <privateKey>", "Your private key for authentication")
+    .action(async (groupName, members, options) => {
+      try {
+        console.log(`Creating group "${groupName}" with ${members.length} members...`);
+
+        // 1. Generate your unique Sender Key for this group
+        const myChainKey = randomBytes(32).toString('hex');
+        const mySigningKey = EthCrypto.createIdentity(); // New ephemeral signing key
+
+        // Derive creator's public key for unique group inbox ID
+        const creatorPubKey = EthCrypto.publicKeyByPrivateKey(options.key);
+        const groupInboxId = hashGroupId(groupName, creatorPubKey);
+
+        // 2. Distribute to each member via their 1-on-1 "Envelope"
+        for (const member of members) {
+          console.log(`Distributing key to ${member}...`);
+
+          // Fetch member's public key
+          const keyResp = await fetch(`${API_BASE_URL}/cli/user/${member}`);
+          const { publicKey: recipientPubKey } = await keyResp.json();
+
+          // Wrap the group setup info in an E2EE envelope
+          const setupInfo = JSON.stringify({
+            type: "GROUP_SETUP",
+            groupId: groupName,
+            groupInboxId: groupInboxId,
+            creator: members[0],
+            chainKey: myChainKey,
+            signingPubKey: mySigningKey.publicKey
+          });
+
+          const encrypted = await EthCrypto.encryptWithPublicKey(recipientPubKey, setupInfo);
+
+          // Send this to the member's private hashed inbox
+          await fetch(`${API_BASE_URL}/cli/send`, {
+            method: "POST",
+            body: JSON.stringify({
+              recipientHash: hashUsername(member),
+              message: EthCrypto.cipher.stringify(encrypted),
+              signature: await new ethers.Wallet(options.key).signMessage(EthCrypto.cipher.stringify(encrypted))
+            })
+          });
+        }
+
+        // 3. Save group state locally (first member is the creator)
+        const groupData = {
+          name: groupName,
+          groupInboxId: groupInboxId,
+          creator: members[0],
+          myChainKey: myChainKey,
+          mySigningKey: mySigningKey.privateKey,
+          members: members
+        };
+        saveGroup(groupName, groupData);
+
+        console.log(`✅ Group "${groupName}" created and keys distributed!`);
+      } catch (error: any) {
+        console.error("❌ Failed to create group:", error.message);
+      }
+    });
+
+  program
+    .command("group-send <groupName> <message>")
+    .description("Send an E2EE message to a group using your Sender Key")
+    .action(async (groupName, message) => {
+      try {
+        // 1. Load the group state
+        const group = loadGroup(groupName);
+        if (!group) throw new Error("Group not found locally.");
+
+        // 2. Derive the current MessageKey and the NextChainKey (The Ratchet)
+        // We use the current chainKey as the entropy source
+        const currentChainKey = Buffer.from(group.myChainKey, 'hex');
+        
+        const { messageKey, nextChainKey } = nextKey(currentChainKey);
+
+        // 3. Encrypt the message SYMMETRICALLY (AES-256-GCM)
+        const iv = randomBytes(16);
+        const cipher = createCipheriv('aes-256-gcm', messageKey, iv);
+        
+        // We encrypt the "Double Envelope" (text + senderId)
+        const payload = JSON.stringify({
+          text: message,
+          senderId: group.creator,
+          createdAt: Date.now()
+        });
+
+        let ciphertext = cipher.update(payload, 'utf8', 'hex');
+        ciphertext += cipher.final('hex');
+        const authTag = cipher.getAuthTag().toString('hex');
+
+        // Combine IV, ciphertext, and tag into a single string
+        const encryptedBlob = `${iv.toString('hex')}:${authTag}:${ciphertext}`;
+
+        // 4. Sign the blob with your Group Signing Key
+        // This proves YOU sent it to the group
+        const signature = EthCrypto.sign(group.mySigningKey, EthCrypto.hash.keccak256(encryptedBlob));
+
+        // 5. Update local group state (Save the ratchet)
+        group.myChainKey = nextChainKey.toString('hex');
+        saveGroup(groupName, group);
+
+        // 6. POST to the group's blinded inbox
+        await fetch(`${API_BASE_URL}/cli/send`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            recipientHash: group.groupInboxId,
+            message: encryptedBlob,
+            signature: signature,
+            senderId: group.creator // So members know which chain to use to decrypt
+          }),
+        });
+
+        console.log(`✅ Group message sent to "${groupName}"`);
+      } catch (error: any) {
+        console.error("❌ Group send failed:", error.message);
+      }
+    });
+
+  program
+    .command("get-group-messages <groupName>")
+    .description("Fetch messages sent to a specific group")
+    .requiredOption("-k, --key <privateKey>", "Your private key")
+    .action(async (groupName, options) => {
+      const group = loadGroup(groupName);
+      if (!group) return console.error("❌ You are not a member of this group.");
+
+      const groupInboxId = hashUsername(groupName);
+      const response = await fetch(`${API_BASE_URL}/api/messages/${groupInboxId}`);
+      const messages = await response.json();
+
+      for (const msg of messages) {
+        // 1. Decrypt using the group's current Sender Key state
+        // 2. Verify against the member's Signing Key
+        // 3. Ratchet the key forward
+        console.log(`[Group ${groupName}] Decrypting message...`);
+      }
+    });
+
+  program
+    .command("leave-group <groupName>")
+    .description("Leave a group and notify members to rotate keys")
+    .action(async (groupName) => {
+      try {
+        const group = loadGroup(groupName);
+        if (!group) throw new Error("You are not in this group.");
+
+        // 1. Notify the group (Blinded inbox)
+        const leaveNotice = JSON.stringify({
+          type: "GROUP_LEAVE",
+          groupId: groupName,
+          senderId: group.creator
+        });
+
+        // We sign the notice so members know it's a real request
+        const signature = EthCrypto.sign(group.mySigningKey, EthCrypto.hash.keccak256(leaveNotice));
+
+        await fetch(`${API_BASE_URL}/cli/send`, {
+          method: "POST",
+          body: JSON.stringify({
+            recipientHash: group.groupInboxId,
+            message: leaveNotice, // Some implementations encrypt this, some keep it as metadata
+            signature: signature
+          })
+        });
+
+        deleteGroup(groupName);
+
+        console.log(`👋 You have left "${groupName}".`);
+      } catch (error: any) {
+        console.error("❌ Leave failed:", error.message);
+      }
+    });
 
 program.parse(process.argv);

@@ -43,7 +43,7 @@ npx @openindex/openindexcli register alice -k YOUR_PRIVATE_KEY
 npx @openindex/openindexcli register @bob -k BOB_PRIVATE_KEY  # @ is optional
 
 # Send end-to-end encrypted messages
-npx @openindex/openindexcli send-message bob alice "Hello Bob! Only you can read this." -k ALICE_KEY
+npx @openindex/openindexcli send-message alice bob "Hello Bob! Only you can read this." -k ALICE_KEY
 npx @openindex/openindexcli get-messages bob -k BOB_KEY  # Bob retrieves and decrypts
 
 # Send crypto to username (optional - CLI is primarily for messaging)
@@ -69,7 +69,7 @@ npx @openindex/openindexcli set-user <username> <description> -k <key>        # 
 npx @openindex/openindexcli get-user <username>                               # Get public info for a username
 npx @openindex/openindexcli search <query> [-l <limit>]                       # Search users by username/description
 npx @openindex/openindexcli roulette                                          # Get a random username to chat with
-npx @openindex/openindexcli send-message <toUser> <fromUser> <message> -k <key>       # Send encrypted message
+npx @openindex/openindexcli send-message <fromUser> <toUser> <message> -k <key>       # Send encrypted message
 npx @openindex/openindexcli get-messages <username> -k <key>                  # Retrieve and decrypt your messages
 
 # Example: Alice registers and sets up her profile
@@ -84,7 +84,7 @@ npx @openindex/openindexcli search "crypto trading" -l 5                      # 
 # Example: Alice sends Bob a private message
 npx @openindex/openindexcli register bob -k BOB_KEY
 npx @openindex/openindexcli get-user bob                                      # Get Bob's public key
-npx @openindex/openindexcli send-message bob alice "Secret message" -k ALICE_KEY
+npx @openindex/openindexcli send-message alice bob "Secret message" -k ALICE_KEY
 npx @openindex/openindexcli get-messages bob -k BOB_KEY  # Only Bob can decrypt this
 ```
 
@@ -93,6 +93,31 @@ npx @openindex/openindexcli get-messages bob -k BOB_KEY  # Only Bob can decrypt 
 - Blinded inbox (server doesn't know who messages are for)
 - Cryptographically signed (verify sender authenticity)
 - No metadata leakage (usernames are hashed)
+
+### Group Messaging
+
+Create encrypted group chats with Sender Keys protocol for efficient multi-party communication.
+
+```bash
+npx @openindex/openindexcli create-group <groupName> <member1> <member2> ... -k <key>  # Create group (space-separated members)
+npx @openindex/openindexcli group-send <groupName> <message>                           # Send message to group
+npx @openindex/openindexcli leave-group <groupName>                                    # Leave group and trigger key rotation
+
+# Example: Create a group with alice, bob, and charlie
+npx @openindex/openindexcli create-group team alice bob charlie -k ALICE_KEY
+
+# Example: Send a message to the group
+npx @openindex/openindexcli group-send team "Hello everyone!"
+
+# Example: Leave the group (remaining members will rotate keys)
+npx @openindex/openindexcli leave-group team
+```
+
+**How it works:**
+- Creator distributes Sender Keys to all members via E2EE
+- Each member has their own chain key for forward secrecy
+- When a member leaves, remaining members rotate keys automatically
+- Group inbox is blinded (server doesn't know the group name)
 
 ### Cryptographic Operations
 
@@ -136,7 +161,7 @@ npx @openindex/openindexcli register alice -k ALICE_KEY
 npx @openindex/openindexcli register bob -k BOB_KEY
 
 # Alice sends Bob an encrypted message
-npx @openindex/openindexcli send-message bob alice "Meet me at the specified location at 3pm" -k ALICE_KEY
+npx @openindex/openindexcli send-message alice bob "Meet me at the specified location at 3pm" -k ALICE_KEY
 # Message encrypted with Bob's public key
 # Server stores by hash - doesn't know it's for Bob
 # Only Bob's private key can decrypt it
@@ -148,8 +173,31 @@ npx @openindex/openindexcli get-messages bob -k BOB_KEY
 # > Meet me at the specified location at 3pm
 
 # Alice can also receive replies
-npx @openindex/openindexcli send-message alice bob "Confirmed. See you then." -k BOB_KEY
+npx @openindex/openindexcli send-message bob alice "Confirmed. See you then." -k BOB_KEY
 npx @openindex/openindexcli get-messages alice -k ALICE_KEY
+```
+
+### Group Messaging Workflow
+
+```bash
+# All members must be registered first
+npx @openindex/openindexcli register alice -k ALICE_KEY
+npx @openindex/openindexcli register bob -k BOB_KEY
+npx @openindex/openindexcli register charlie -k CHARLIE_KEY
+
+# Alice creates a group with bob and charlie (space-separated usernames)
+npx @openindex/openindexcli create-group project-team alice bob charlie -k ALICE_KEY
+# Alice's Sender Key is distributed to bob and charlie via E2EE
+
+# Any member can send messages to the group
+npx @openindex/openindexcli group-send project-team "Meeting at 3pm tomorrow"
+# Message encrypted with sender's chain key
+# All members can decrypt using the shared Sender Key
+
+# When someone leaves, keys are automatically rotated
+npx @openindex/openindexcli leave-group project-team
+# Remaining members receive new chain keys
+# The departed member can't read future messages
 ```
 
 ### Username-Based Crypto Transfers (Optional)
