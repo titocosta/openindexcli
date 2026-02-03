@@ -68,7 +68,7 @@ const program = new Command();
 program
     .name("openindexcli")
     .description("OpenIndex CLI for end-to-end encrypted messaging and crypto transfers")
-    .version("1.0.8")
+    .version("1.0.9")
     .option("--chain <chain>", "Blockchain to use (eth, base, bsc)", "eth");
 // --- COMMAND: List Chains ---
 program
@@ -565,22 +565,58 @@ program
     }
 });
 program
-    .command("get-messages <username>")
-    .description("Fetch and unwrap messages from your blinded inbox")
+    .command("get-messages <name>")
+    .description("Fetch and unwrap messages from your inbox or a group inbox")
     .requiredOption("-k, --key <privateKey>", "Your private key to decrypt")
-    .action(async (username, options) => {
+    .action(async (name, options) => {
     try {
         if (!options.key) {
             throw new Error("Private key is required");
         }
-        const inboxId = hashUsername(username);
+        // Check if this is a group or a username
+        const group = loadGroup(name);
+        const inboxId = group ? group.groupInboxId : hashUsername(name);
+        const isGroup = !!group;
         const response = await fetch(`${API_BASE_URL}/cli/messages/${inboxId}`);
         const messages = await response.json();
         for (const msg of messages) {
             if (!msg.message) {
-                console.log(`Skipping message ${msg.id}: no message content`);
                 continue;
             }
+            // Group messages use symmetric encryption (AES-256-GCM)
+            if (isGroup) {
+                try {
+                    // Group message format: iv:authTag:ciphertext
+                    const [ivHex, authTagHex, ciphertext] = msg.message.split(':');
+                    if (!ivHex || !authTagHex || !ciphertext) {
+                        continue; // Not a valid group message format
+                    }
+                    // Get the sender's chain key from the group
+                    const senderKey = group.memberKeys?.[msg.senderId];
+                    if (!senderKey) {
+                        continue; // Unknown sender
+                    }
+                    // Derive the message key using the same ratchet logic
+                    const chainKeyBuf = Buffer.from(senderKey, 'hex');
+                    const { messageKey } = nextKey(chainKeyBuf);
+                    // Decrypt with AES-256-GCM
+                    const { createDecipheriv } = await import('crypto');
+                    const decipher = createDecipheriv('aes-256-gcm', messageKey, Buffer.from(ivHex, 'hex'));
+                    decipher.setAuthTag(Buffer.from(authTagHex, 'hex'));
+                    let decrypted = decipher.update(ciphertext, 'hex', 'utf8');
+                    decrypted += decipher.final('utf8');
+                    const { text, senderId, createdAt } = JSON.parse(decrypted);
+                    const date = new Date(createdAt).toLocaleString();
+                    console.log(`\n${msg.id} [${date}] From ${senderId}:`);
+                    console.log(`> ${text}`);
+                }
+                catch {
+                    // Skip messages we can't decrypt
+                    continue;
+                }
+                continue;
+            }
+            // Regular messages use asymmetric encryption (E2EE)
             // 1. Decrypt the Envelope
             const payload = EthCrypto.cipher.parse(msg.message);
             const decryptedJson = await EthCrypto.decryptWithPrivateKey(options.key, payload);
@@ -756,24 +792,6 @@ program
     }
     catch (error) {
         console.error("❌ Group send failed:", error.message);
-    }
-});
-program
-    .command("get-group-messages <groupName>")
-    .description("Fetch messages sent to a specific group")
-    .requiredOption("-k, --key <privateKey>", "Your private key")
-    .action(async (groupName, options) => {
-    const group = loadGroup(groupName);
-    if (!group)
-        return console.error("❌ You are not a member of this group.");
-    const groupInboxId = hashUsername(groupName);
-    const response = await fetch(`${API_BASE_URL}/api/messages/${groupInboxId}`);
-    const messages = await response.json();
-    for (const msg of messages) {
-        // 1. Decrypt using the group's current Sender Key state
-        // 2. Verify against the member's Signing Key
-        // 3. Ratchet the key forward
-        console.log(`[Group ${groupName}] Decrypting message...`);
     }
 });
 program
