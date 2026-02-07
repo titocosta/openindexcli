@@ -1,0 +1,12 @@
+node_modules/
+dist/
+
+.env
+.env.local
+.env*.local
+
+# AI agent directories
+.agents/
+.claude/
+.codex/
+.opencode/

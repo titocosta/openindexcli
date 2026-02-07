@@ -4,22 +4,24 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-OpenIndexCLI is a multi-chain CLI tool with username-based crypto transfers. Users register usernames (like @alice) and can send ETH/tokens to usernames instead of 0x addresses. Supports encrypted messaging, wallet management across Ethereum, Base, and BSC. Built with TypeScript using Commander.js for the CLI framework and ethers.js/eth-crypto for blockchain operations.
+OpenIndexCLI is a multi-chain CLI tool for end-to-end encrypted messaging and username-based crypto transfers. Users register usernames (like @alice) and can send encrypted messages or ETH/tokens to usernames instead of 0x addresses. Supports Ethereum, Base, and BSC. Built with TypeScript using Commander.js, ethers.js v6, and eth-crypto.
 
 ## Commands
 
-### Run the CLI
+### Run the CLI (development)
 ```bash
-# Default (Ethereum)
-npx ts-node index.ts <command> [options]
-
-# Specify blockchain
-npx ts-node index.ts --chain <eth|base|bsc> <command> [options]
+npx tsx index.ts <command> [options]
+npx tsx index.ts --chain <eth|base|bsc> <command> [options]
 ```
 
-### Build (TypeScript compilation)
+### Build
 ```bash
 npx tsc
+```
+
+### Run built version
+```bash
+node dist/index.js <command> [options]
 ```
 
 ### Install dependencies
@@ -27,93 +29,63 @@ npx tsc
 npm install
 ```
 
+**Note:** There are no tests or linting configured. The project uses `"type": "module"` (ES modules).
+
 ## Architecture
 
-Single-file CLI application (`index.ts`) using Commander.js command pattern. All commands are registered on a single `program` instance.
+### File Structure
 
-**Key files:**
-- `index.ts` - Main CLI application with all commands
-- `tokens.json` - Token registry mapping symbols to contract addresses
+- `index.ts` — Main CLI application (~970 lines). All Commander.js commands are registered on a single `program` instance. Contains wallet operations, transaction sending, message encryption/decryption, user registration, and group management.
+- `lib/constants.ts` — Chain configs (RPC URLs, chain IDs) and `API_BASE_URL`
+- `lib/helpers.ts` — `hashUsername()` and `hashGroupId()` (SHA-256 hashing for blinded inboxes)
+- `lib/group.ts` — Group messaging: `nextKey()` (HMAC-SHA256 ratchet) and `redistributeKeys()` (key rotation via E2EE)
+- `lib/local.ts` — Local group data persistence in `~/.openindex/groups.json` (chmod 600). Functions: `saveGroup()`, `loadGroup()`, `deleteGroup()`
+- `tokens.json` — Token registry mapping symbols (USDC, USDT, etc.) to contract addresses per chain
 
-**Key dependencies:**
-- `ethers` - Ethereum wallet operations, transaction signing, message verification
-- `eth-crypto` - Public key derivation, asymmetric encryption/decryption
-- `commander` - CLI argument parsing and command structure
+### Key Patterns
 
-**External API:** Communicates with `https://www.openindex.ai` for:
-- User registration (`/api/register`)
-- Public key discovery (`/api/user/{username}`)
-- Blinded message delivery (`/api/send`)
-- Message retrieval (`/api/messages/{inboxId}`)
+**Private key handling:** Commands that need a private key accept `-k, --key <key>` or fall back to `OPENINDEX_PRIVATE_KEY` env var via `getPrivateKey(options)`.
 
-**Environment:**
-- `ETH_RPC_URL` - Ethereum JSON-RPC endpoint (defaults to Cloudflare)
-- `BASE_RPC_URL` - Base JSON-RPC endpoint (defaults to Base mainnet)
-- `BSC_RPC_URL` - BSC JSON-RPC endpoint (defaults to Binance dataseed)
-- `RPC_URL` - Legacy RPC URL (backwards compatibility)
+**Username resolution:** `resolveUsernameToAddress(recipient)` checks if input starts with `@` (or is a non-hex string), fetches the address from the API, and returns it. Used by `send-eth` and `send-token` commands.
 
-**Supported Chains:**
-- `eth` - Ethereum Mainnet (Chain ID: 1)
-- `base` - Base Mainnet (Chain ID: 8453)
-- `bsc` - Binance Smart Chain (Chain ID: 56)
+**Token resolution:** `resolveTokenAddress(tokenInput, chain)` looks up `tokens.json` by symbol name for the current chain. Falls back to treating input as a raw contract address.
 
-## CLI Commands
+### External API
 
-| Command | Description |
-|---------|-------------|
-| `chains` | List supported blockchain networks |
-| `tokens` | List supported token symbols for each chain |
-| `create [mnemonic...]` | Generate new wallet or restore from 12-word mnemonic |
-| `register <username> -k <key>` | Register username for crypto transfers & messaging |
-| `get-user <username>` | Retrieve public profile (address & public key) |
-| `roulette` | Get a random username to chat with |
-| `balance <address>` | Check native token balance |
-| `token-balance <token> <address>` | Check ERC-20 token balance (use symbol or address) |
-| `send <to\|@username> <amount> -k <key>` | Send native token to address or username |
-| `send-token <token> <to\|@username> <amount> -k <key>` | Send ERC-20 token to address or username |
-| `sign <message> -k <key>` | Sign message with private key |
-| `verify <message> <signature>` | Verify message signature |
-| `get-address -k <key>` | Derive wallet address from private key |
-| `get-pubkey -k <key>` | Derive public key from private key |
-| `encrypt <pubKey> <message>` | Encrypt message for recipient |
-| `decrypt <encrypted> -k <key>` | Decrypt message with private key |
-| `register <username> -k <key>` | Register with OpenIndex server |
-| `send <toUser> <fromUser> <msg> -k <key>` | Send encrypted message |
-| `get-messages <name> -k <key>` | Retrieve and decrypt messages (username or group) |
+Base URL: `https://chat.openindex.ai/api` (defined in `lib/constants.ts`)
 
-## Human-Friendly Features
+All API routes use the `/api/` prefix after the base:
+- `GET /api/user/{username}` — Fetch user's address, public key, description
+- `POST /api/user/{username}` — Update user description (signed)
+- `POST /api/register` — Register username with address & public key
+- `GET /api/search?q={query}&limit={n}` — Search users (BM25 + semantic)
+- `GET /api/roulette` — Random active username
+- `POST /api/send` — Send blinded message to inbox
+- `GET /api/messages/{inboxId}` — Fetch messages from blinded inbox
 
-### Username-Based Transfers
-Register a username and send crypto using @username instead of 0x addresses:
-```bash
-# Register
-npx ts-node index.ts register alice -k YOUR_KEY
+### Messaging Protocol
 
-# Send to username (@ is optional)
-npx ts-node index.ts send @bob 0.1 -k YOUR_KEY
-npx ts-node index.ts send-token USDC @alice 100 -k YOUR_KEY
-```
+**1-on-1 messages (asymmetric E2EE):**
+1. Inner envelope: JSON with plaintext, senderId, timestamp
+2. Encrypted with recipient's public key via `EthCrypto.encryptWithPublicKey`
+3. Signed by sender with `ethers.Wallet.signMessage`
+4. Recipient identified by `SHA-256(username)` (blinded inbox)
 
-### Token Symbol Support
-Use short symbols instead of full contract addresses:
+**Group messages (symmetric, Sender Keys protocol):**
+1. Creator generates a `chainKey` and distributes it to members via E2EE (each member gets it encrypted with their public key)
+2. Messages encrypted with AES-256-GCM using keys derived from HMAC-SHA256 ratchet (`lib/group.ts:nextKey`)
+3. When a member leaves, remaining members rotate to a fresh `chainKey` (`lib/group.ts:redistributeKeys`)
+4. Group state stored locally in `~/.openindex/groups.json`
 
-**Ethereum**: USDC, USDT, DAI, WETH, WBTC, UNI, LINK, AAVE
-**Base**: USDC, DAI, WETH, cbETH
-**BSC**: USDC, USDT, BUSD, DAI, WBNB, CAKE, ETH
+### Environment Variables
 
-Examples:
-```bash
-# Send USDC to username using symbol
-npx ts-node index.ts --chain base send-token USDC @alice 100 -k YOUR_KEY
+- `OPENINDEX_PRIVATE_KEY` — Pre-set private key (avoids `-k` flag on every command)
+- `ETH_RPC_URL` — Ethereum RPC (default: Cloudflare)
+- `BASE_RPC_URL` — Base RPC (default: mainnet.base.org)
+- `BSC_RPC_URL` — BSC RPC (default: bsc-dataseed.binance.org)
 
-# Combine both: username + token symbol
-npx ts-node index.ts send-token USDT @bob 50 -k YOUR_KEY
-```
+### Supported Chains
 
-## Messaging Protocol
-
-Messages use a double-envelope pattern:
-1. Inner envelope contains plaintext message, sender ID, and timestamp
-2. Encrypted with recipient's public key (asymmetric encryption)
-3. Signed by sender for integrity verification
-4. Recipient identified by SHA-256 hash of username (blinded inbox)
+- `eth` — Ethereum Mainnet (Chain ID: 1)
+- `base` — Base Mainnet (Chain ID: 8453)
+- `bsc` — Binance Smart Chain (Chain ID: 56)
