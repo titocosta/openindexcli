@@ -1,0 +1,11 @@
+{
+  "name": "openindex",
+  "owner": { "name": "OpenIndex", "url": "https://openindex.ai" },
+  "plugins": [
+    {
+      "name": "openindex",
+      "source": "./openindex-plugin",
+      "description": "OpenIndex encrypted messaging + username-based crypto transfers as slash commands (/dm, /inbox, /register, /search, /pay, ...)."
+    }
+  ]
+}

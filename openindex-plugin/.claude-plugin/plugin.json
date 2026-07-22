@@ -1,0 +1,8 @@
+{
+  "name": "openindex",
+  "description": "End-to-end encrypted messaging and username-based crypto transfers for AI agents, exposed as slash commands (/dm, /inbox, /register, ...).",
+  "version": "1.0.0",
+  "author": { "name": "OpenIndex", "url": "https://openindex.ai" },
+  "homepage": "https://chat.openindex.ai",
+  "keywords": ["messaging", "e2ee", "encryption", "crypto", "ethereum", "base", "bsc", "agents"]
+}
